@@ -7,15 +7,179 @@ const bcrypt = require("bcryptjs");
 const { open } = require("sqlite");
 
 const usePostgres = !!process.env.DATABASE_URL;
+const DEFAULT_TENANT_ID = 1;
+const DEFAULT_TENANT_NAME = "Default Tenant";
 
 function replacePlaceholders(sql) {
   let i = 0;
   return sql.replace(/\?/g, () => `$${++i}`);
 }
 
-async function seedOwner(db) {
+async function applySqliteMultiTenantMigration(db) {
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS tenants (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  const alterStatements = [
+    "ALTER TABLE products ADD COLUMN externalId TEXT;",
+    "ALTER TABLE orders ADD COLUMN externalId TEXT;",
+    "ALTER TABLE users ADD COLUMN tenant_id INTEGER NOT NULL DEFAULT 1;",
+    "ALTER TABLE products ADD COLUMN tenant_id INTEGER NOT NULL DEFAULT 1;",
+    "ALTER TABLE orders ADD COLUMN tenant_id INTEGER NOT NULL DEFAULT 1;",
+    "ALTER TABLE reviews ADD COLUMN tenant_id INTEGER NOT NULL DEFAULT 1;",
+    "ALTER TABLE sales ADD COLUMN tenant_id INTEGER NOT NULL DEFAULT 1;",
+    "ALTER TABLE push_tokens ADD COLUMN tenant_id INTEGER NOT NULL DEFAULT 1;",
+    "ALTER TABLE sales ADD COLUMN order_id INTEGER;",
+    "ALTER TABLE push_tokens ADD COLUMN userId INTEGER;",
+  ];
+  for (const stmt of alterStatements) {
+    try {
+      await db.exec(stmt);
+    } catch (_e) {}
+  }
+
+  await db.run("INSERT OR IGNORE INTO tenants (id, name) VALUES (?,?)", [
+    DEFAULT_TENANT_ID,
+    DEFAULT_TENANT_NAME,
+  ]);
+  await db.run("UPDATE tenants SET name = ? WHERE id = ?", [
+    DEFAULT_TENANT_NAME,
+    DEFAULT_TENANT_ID,
+  ]);
+
+  const backfillTenantStatements = [
+    "UPDATE users SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0;",
+    "UPDATE products SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0;",
+    "UPDATE orders SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0;",
+    "UPDATE reviews SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0;",
+    "UPDATE sales SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0;",
+    "UPDATE push_tokens SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0;",
+  ];
+  for (const stmt of backfillTenantStatements) {
+    try {
+      await db.exec(stmt);
+    } catch (_e) {}
+  }
+
+  const indexStatements = [
+    "DROP INDEX IF EXISTS idx_orders_externalId;",
+    "DROP INDEX IF EXISTS idx_sales_ref_user;",
+    "DROP INDEX IF EXISTS idx_push_tokens_role_active;",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username);",
+    "CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users(tenant_id);",
+    "CREATE INDEX IF NOT EXISTS idx_products_tenant_id ON products(tenant_id);",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_tenant_externalId ON orders(tenant_id, externalId) WHERE externalId IS NOT NULL;",
+    "CREATE INDEX IF NOT EXISTS idx_orders_tenant_id ON orders(tenant_id);",
+    "CREATE INDEX IF NOT EXISTS idx_sales_tenant_userId ON sales(tenant_id, userId);",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_tenant_ref_user ON sales(tenant_id, refId, userId) WHERE refId IS NOT NULL;",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_tenant_order_id ON sales(tenant_id, order_id) WHERE order_id IS NOT NULL;",
+    "CREATE INDEX IF NOT EXISTS idx_reviews_tenant_id ON reviews(tenant_id);",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_push_tokens_token ON push_tokens(token);",
+    "CREATE INDEX IF NOT EXISTS idx_push_tokens_tenant_role_active ON push_tokens(tenant_id, role, active);",
+  ];
+  for (const stmt of indexStatements) {
+    try {
+      await db.exec(stmt);
+    } catch (_e) {}
+  }
+}
+
+async function applyPostgresMultiTenantMigration(pool) {
+  const statements = [
+    `
+    CREATE TABLE IF NOT EXISTS tenants (
+      id BIGSERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    `,
+    "ALTER TABLE products ADD COLUMN IF NOT EXISTS externalId TEXT;",
+    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS externalId TEXT;",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id BIGINT;",
+    "ALTER TABLE products ADD COLUMN IF NOT EXISTS tenant_id BIGINT;",
+    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS tenant_id BIGINT;",
+    "ALTER TABLE reviews ADD COLUMN IF NOT EXISTS tenant_id BIGINT;",
+    "ALTER TABLE sales ADD COLUMN IF NOT EXISTS tenant_id BIGINT;",
+    "ALTER TABLE push_tokens ADD COLUMN IF NOT EXISTS tenant_id BIGINT;",
+    "ALTER TABLE sales ADD COLUMN IF NOT EXISTS order_id BIGINT;",
+    "ALTER TABLE push_tokens ADD COLUMN IF NOT EXISTS userId BIGINT;",
+    "INSERT INTO tenants (id, name) VALUES (1, 'Default Tenant') ON CONFLICT (id) DO NOTHING;",
+    "UPDATE tenants SET name = 'Default Tenant' WHERE id = 1;",
+    "UPDATE users SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0;",
+    "UPDATE products SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0;",
+    "UPDATE orders SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0;",
+    "UPDATE reviews SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0;",
+    "UPDATE sales SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0;",
+    "UPDATE push_tokens SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0;",
+    "ALTER TABLE users ALTER COLUMN tenant_id SET NOT NULL;",
+    "ALTER TABLE products ALTER COLUMN tenant_id SET NOT NULL;",
+    "ALTER TABLE orders ALTER COLUMN tenant_id SET NOT NULL;",
+    "ALTER TABLE reviews ALTER COLUMN tenant_id SET NOT NULL;",
+    "ALTER TABLE sales ALTER COLUMN tenant_id SET NOT NULL;",
+    "ALTER TABLE push_tokens ALTER COLUMN tenant_id SET NOT NULL;",
+    "ALTER TABLE users ALTER COLUMN tenant_id SET DEFAULT 1;",
+    "ALTER TABLE products ALTER COLUMN tenant_id SET DEFAULT 1;",
+    "ALTER TABLE orders ALTER COLUMN tenant_id SET DEFAULT 1;",
+    "ALTER TABLE reviews ALTER COLUMN tenant_id SET DEFAULT 1;",
+    "ALTER TABLE sales ALTER COLUMN tenant_id SET DEFAULT 1;",
+    "ALTER TABLE push_tokens ALTER COLUMN tenant_id SET DEFAULT 1;",
+    "DROP INDEX IF EXISTS idx_orders_externalId;",
+    "DROP INDEX IF EXISTS idx_sales_ref_user;",
+    "DROP INDEX IF EXISTS idx_push_tokens_role_active;",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username);",
+    "CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users(tenant_id);",
+    "CREATE INDEX IF NOT EXISTS idx_products_tenant_id ON products(tenant_id);",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_tenant_externalId ON orders(tenant_id, externalId) WHERE externalId IS NOT NULL;",
+    "CREATE INDEX IF NOT EXISTS idx_orders_tenant_id ON orders(tenant_id);",
+    "CREATE INDEX IF NOT EXISTS idx_sales_tenant_userId ON sales(tenant_id, userId);",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_tenant_ref_user ON sales(tenant_id, refId, userId) WHERE refId IS NOT NULL;",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_tenant_order_id ON sales(tenant_id, order_id) WHERE order_id IS NOT NULL;",
+    "CREATE INDEX IF NOT EXISTS idx_reviews_tenant_id ON reviews(tenant_id);",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_push_tokens_token ON push_tokens(token);",
+    "CREATE INDEX IF NOT EXISTS idx_push_tokens_tenant_role_active ON push_tokens(tenant_id, role, active);",
+    "SELECT setval(pg_get_serial_sequence('tenants', 'id'), GREATEST((SELECT MAX(id) FROM tenants), 1));",
+  ];
+
+  for (const stmt of statements) {
+    await pool.query(stmt);
+  }
+}
+
+async function ensureDefaultTenant(db, engine) {
+  if (engine === "postgres") {
+    await db.run("INSERT INTO tenants (id, name) VALUES (?, ?) ON CONFLICT (id) DO NOTHING", [
+      DEFAULT_TENANT_ID,
+      DEFAULT_TENANT_NAME,
+    ]);
+    await db.run("UPDATE tenants SET name = ? WHERE id = ?", [
+      DEFAULT_TENANT_NAME,
+      DEFAULT_TENANT_ID,
+    ]);
+    await db.get(
+      "SELECT setval(pg_get_serial_sequence('tenants', 'id'), GREATEST((SELECT MAX(id) FROM tenants), 1))"
+    );
+    return DEFAULT_TENANT_ID;
+  }
+
+  await db.run("INSERT OR IGNORE INTO tenants (id, name) VALUES (?,?)", [
+    DEFAULT_TENANT_ID,
+    DEFAULT_TENANT_NAME,
+  ]);
+  await db.run("UPDATE tenants SET name = ? WHERE id = ?", [
+    DEFAULT_TENANT_NAME,
+    DEFAULT_TENANT_ID,
+  ]);
+  return DEFAULT_TENANT_ID;
+}
+
+async function seedOwner(db, engine) {
   try {
-    const row = await db.get("SELECT COUNT(*) as c FROM users");
+    const tenantId = await ensureDefaultTenant(db, engine);
+    const row = await db.get("SELECT COUNT(*) as c FROM users WHERE tenant_id = ?", [tenantId]);
     const count = Number(row?.c ?? row?.count ?? 0);
     if (!count) {
       const username = process.env.ADMIN_USER || "admin";
@@ -35,7 +199,8 @@ async function seedOwner(db) {
       }
 
       const hash = await bcrypt.hash(password, 10);
-      await db.run("INSERT INTO users (username, passwordHash, role) VALUES (?,?,?)", [
+      await db.run("INSERT INTO users (tenant_id, username, passwordHash, role) VALUES (?,?,?,?)", [
+        tenantId,
         username,
         hash,
         role,
@@ -56,8 +221,15 @@ async function initSqlite() {
   await db.exec("PRAGMA journal_mode = WAL;");
 
   await db.exec(`
+    CREATE TABLE IF NOT EXISTS tenants (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS products (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL DEFAULT 1,
       externalId TEXT,
       nombre TEXT NOT NULL,
       descripcion TEXT,
@@ -80,6 +252,7 @@ async function initSqlite() {
 
     CREATE TABLE IF NOT EXISTS orders (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL DEFAULT 1,
       externalId TEXT,
       clienteNombre TEXT,
       clienteTelefono TEXT,
@@ -92,6 +265,7 @@ async function initSqlite() {
 
     CREATE TABLE IF NOT EXISTS reviews (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL DEFAULT 1,
       nombre TEXT,
       telefono TEXT,
       rating INTEGER,
@@ -102,6 +276,7 @@ async function initSqlite() {
 
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL DEFAULT 1,
       username TEXT UNIQUE,
       passwordHash TEXT,
       role TEXT DEFAULT 'staff',
@@ -110,6 +285,8 @@ async function initSqlite() {
 
     CREATE TABLE IF NOT EXISTS sales (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL DEFAULT 1,
+      order_id INTEGER,
       refId TEXT,
       userId INTEGER,
       userName TEXT,
@@ -124,6 +301,7 @@ async function initSqlite() {
 
     CREATE TABLE IF NOT EXISTS push_tokens (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL DEFAULT 1,
       userId INTEGER,
       role TEXT DEFAULT 'owner',
       platform TEXT,
@@ -135,32 +313,8 @@ async function initSqlite() {
     );
   `);
 
-  try {
-    await db.exec("ALTER TABLE products ADD COLUMN externalId TEXT;");
-  } catch (e) {}
-  try {
-    await db.exec("ALTER TABLE orders ADD COLUMN externalId TEXT;");
-  } catch (e) {}
-  try {
-    await db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_externalId ON orders(externalId);");
-  } catch (e) {}
-  try {
-    await db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username);");
-  } catch (e) {}
-  try {
-    await db.exec("CREATE INDEX IF NOT EXISTS idx_sales_userId ON sales(userId);");
-  } catch (e) {}
-  try {
-    await db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_ref_user ON sales(refId, userId);");
-  } catch (e) {}
-  try {
-    await db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_push_tokens_token ON push_tokens(token);");
-  } catch (e) {}
-  try {
-    await db.exec("CREATE INDEX IF NOT EXISTS idx_push_tokens_role_active ON push_tokens(role, active);");
-  } catch (e) {}
-
-  await seedOwner(db);
+  await applySqliteMultiTenantMigration(db);
+  await seedOwner(db, "sqlite");
   return db;
 }
 
@@ -176,8 +330,16 @@ async function initPostgres() {
 
   const statements = [
     `
+    CREATE TABLE IF NOT EXISTS tenants (
+      id BIGSERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    `,
+    `
     CREATE TABLE IF NOT EXISTS products (
       id SERIAL PRIMARY KEY,
+      tenant_id BIGINT NOT NULL DEFAULT 1,
       externalId TEXT,
       nombre TEXT NOT NULL,
       descripcion TEXT,
@@ -201,6 +363,7 @@ async function initPostgres() {
     `
     CREATE TABLE IF NOT EXISTS orders (
       id SERIAL PRIMARY KEY,
+      tenant_id BIGINT NOT NULL DEFAULT 1,
       externalId TEXT,
       clienteNombre TEXT,
       clienteTelefono TEXT,
@@ -214,6 +377,7 @@ async function initPostgres() {
     `
     CREATE TABLE IF NOT EXISTS reviews (
       id SERIAL PRIMARY KEY,
+      tenant_id BIGINT NOT NULL DEFAULT 1,
       nombre TEXT,
       telefono TEXT,
       rating INTEGER,
@@ -225,6 +389,7 @@ async function initPostgres() {
     `
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
+      tenant_id BIGINT NOT NULL DEFAULT 1,
       username TEXT UNIQUE,
       passwordHash TEXT,
       role TEXT DEFAULT 'staff',
@@ -234,6 +399,8 @@ async function initPostgres() {
     `
     CREATE TABLE IF NOT EXISTS sales (
       id SERIAL PRIMARY KEY,
+      tenant_id BIGINT NOT NULL DEFAULT 1,
+      order_id BIGINT,
       refId TEXT,
       userId INTEGER,
       userName TEXT,
@@ -249,6 +416,7 @@ async function initPostgres() {
     `
     CREATE TABLE IF NOT EXISTS push_tokens (
       id SERIAL PRIMARY KEY,
+      tenant_id BIGINT NOT NULL DEFAULT 1,
       userId INTEGER,
       role TEXT DEFAULT 'owner',
       platform TEXT,
@@ -259,17 +427,12 @@ async function initPostgres() {
       updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     `,
-    "CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_externalId ON orders(externalId);",
-    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username);",
-    "CREATE INDEX IF NOT EXISTS idx_sales_userId ON sales(userId);",
-    "CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_ref_user ON sales(refId, userId);",
-    "CREATE UNIQUE INDEX IF NOT EXISTS idx_push_tokens_token ON push_tokens(token);",
-    "CREATE INDEX IF NOT EXISTS idx_push_tokens_role_active ON push_tokens(role, active);",
   ];
 
   for (const stmt of statements) {
     await pool.query(stmt);
   }
+  await applyPostgresMultiTenantMigration(pool);
 
   const db = {
     async get(sql, params = []) {
@@ -297,10 +460,15 @@ async function initPostgres() {
     },
   };
 
-  await seedOwner(db);
+  await seedOwner(db, "postgres");
   return db;
 }
 
 const dbPromise = usePostgres ? initPostgres() : initSqlite();
 
-module.exports = { dbPromise };
+module.exports = {
+  dbPromise,
+  usePostgres,
+  DEFAULT_TENANT_ID,
+  DEFAULT_TENANT_NAME,
+};
