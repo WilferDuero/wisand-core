@@ -1,0 +1,56 @@
+{
+  "expo": {
+    "name": "Renacer Pharma",
+    "slug": "drogueria-renacer-admin",
+    "version": "1.0.0",
+    "scheme": "drogueria-renacer-admin",
+    "orientation": "portrait",
+    "icon": "./assets/logo-drogueria.png",
+    "primaryColor": "#21808d",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/logo-drogueria.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#fcfcf9"
+    },
+    "ios": {
+      "bundleIdentifier": "com.drogueriarenacer.adminmobile",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.drogueriarenacer.adminmobile",
+      "googleServicesFile": "./google-services.json",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/logo-drogueria.png",
+        "backgroundColor": "#fcfcf9"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-dev-client",
+      "expo-notifications",
+      "./plugins/withAndroidPushSetup",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "ndkVersion": "26.1.10909125"
+          }
+        }
+      ],
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "66f62340-67f8-4e4f-823e-7037add6e13f"
+      }
+    },
+    "owner": "wilferduero"
+  }
+}
