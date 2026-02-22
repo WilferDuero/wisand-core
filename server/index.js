@@ -1,11 +1,12 @@
-require("dotenv").config();
+﻿require("dotenv").config({ override: true });
 
 const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const https = require("https");
-const { dbPromise } = require("./db");
+const crypto = require("crypto");
+const { dbPromise, DEFAULT_TENANT_ID } = require("./db");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -25,7 +26,7 @@ const PUSH_NOTIFY_ROLES = (() => {
 })();
 
 const DEFAULT_CORS_ORIGINS = [
-  "https://drogueria-renacer.vercel.app",
+  "https://wisand.vercel.app",
   "http://localhost:3000",
   "http://127.0.0.1:3000",
   "http://localhost:5173",
@@ -67,7 +68,7 @@ app.use(
   cors({
     origin: corsOrigin,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Tenant-Id", "X-Master-Key"],
     optionsSuccessStatus: 204,
   })
 );
@@ -101,6 +102,30 @@ const safeJson = (val, fallback = []) => {
   } catch {
     return fallback;
   }
+};
+
+const toTenantId = (value, fallback = 0) => {
+  const n = toInt(value, fallback);
+  return n > 0 ? n : fallback;
+};
+
+const pickTenantId = (req) => {
+  const headerTenant = toTenantId(req.headers?.["x-tenant-id"], 0);
+  const queryTenant = toTenantId(
+    pick(req.query, "tenant_id", "tenantId", "tenant"),
+    0
+  );
+  const bodyTenant = toTenantId(
+    pick(req.body, "tenant_id", "tenantId", "tenant"),
+    0
+  );
+  return headerTenant || queryTenant || bodyTenant || DEFAULT_TENANT_ID;
+};
+
+const getRequestTenantId = (req) => {
+  const userTenant = toTenantId(pick(req.user, "tenant_id", "tenantId"), 0);
+  if (userTenant > 0) return userTenant;
+  return pickTenantId(req);
 };
 
 const pick = (obj, ...keys) => {
@@ -137,9 +162,18 @@ function normalizeProductRow(r) {
 }
 
 const signToken = (user) =>
-  jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, {
-    expiresIn: TOKEN_TTL,
-  });
+  jwt.sign(
+    {
+      id: user.id,
+      tenant_id: toTenantId(pick(user, "tenant_id", "tenantId"), DEFAULT_TENANT_ID),
+      username: user.username,
+      role: user.role,
+    },
+    JWT_SECRET,
+    {
+      expiresIn: TOKEN_TTL,
+    }
+  );
 
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 10;
@@ -197,19 +231,72 @@ function authRequired(req, res, next) {
     return res.status(401).json({ error: "No autorizado" });
   }
   try {
-    req.user = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET) || {};
+    req.user = {
+      id: toInt(decoded.id, 0),
+      tenant_id: toTenantId(decoded.tenant_id ?? decoded.tenantId, DEFAULT_TENANT_ID),
+      role: String(decoded.role || "staff"),
+      username: String(decoded.username || ""),
+    };
+    if (!req.user.id || !req.user.tenant_id) {
+      return res.status(401).json({ error: "Token invÃ¡lido" });
+    }
     return next();
   } catch (e) {
     if (pushTag) {
       console.warn(`[${pushTag}] unauthorized reason=invalid-jwt`);
     }
-    return res.status(401).json({ error: "Token inválido" });
+    return res.status(401).json({ error: "Token invÃ¡lido" });
   }
+}
+
+function authOptional(req, _res, next) {
+  const auth = req.headers.authorization || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  if (!token) return next();
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) || {};
+    req.user = {
+      id: toInt(decoded.id, 0),
+      tenant_id: toTenantId(decoded.tenant_id ?? decoded.tenantId, DEFAULT_TENANT_ID),
+      role: String(decoded.role || "staff"),
+      username: String(decoded.username || ""),
+    };
+  } catch (_e) {}
+  return next();
 }
 
 function ownerOnly(req, res, next) {
   if (!req.user || req.user.role !== "owner") {
     return res.status(403).json({ error: "No autorizado" });
+  }
+  return next();
+}
+
+const timingSafeEqual = (left, right) => {
+  const a = Buffer.from(String(left || ""));
+  const b = Buffer.from(String(right || ""));
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+};
+
+function masterKeyRequired(req, res, next) {
+  const configuredMasterKey = String(process.env.MASTER_KEY || "").trim();
+  if (!configuredMasterKey) {
+    return res.status(500).json({ error: "MASTER_KEY no configurada en el servidor" });
+  }
+
+  const headerMasterKey = String(req.get("x-master-key") || "").trim();
+  const authorizationHeader = String(
+    req.get("authorization") || req.headers.authorization || ""
+  ).trim();
+  const bearerMasterKey = /^Bearer\s+/i.test(authorizationHeader)
+    ? authorizationHeader.replace(/^Bearer\s+/i, "").trim()
+    : "";
+
+  const provided = headerMasterKey || bearerMasterKey;
+  if (!provided || !timingSafeEqual(provided, configuredMasterKey)) {
+    return res.status(401).json({ error: "No autorizado" });
   }
   return next();
 }
@@ -250,13 +337,14 @@ const sanitizePushRoleList = (roles) => {
     .filter((role) => role === "owner" || role === "staff");
 };
 
-async function listPushTokensByRoles(db, roles) {
+async function listPushTokensByRoles(db, roles, tenantId) {
   const roleList = sanitizePushRoleList(roles);
   if (!roleList.length) return [];
   const placeholders = roleList.map(() => "?").join(",");
+  const params = [tenantId, ...roleList];
   const rows = await db.all(
-    `SELECT token, platform FROM push_tokens WHERE active = 1 AND role IN (${placeholders})`,
-    roleList
+    `SELECT token, platform FROM push_tokens WHERE tenant_id = ? AND active = 1 AND role IN (${placeholders})`,
+    params
   );
   return rows
     .map((row) => ({
@@ -266,12 +354,13 @@ async function listPushTokensByRoles(db, roles) {
     .filter((entry) => entry.token.length > 0);
 }
 
-async function disablePushTokens(db, tokens) {
+async function disablePushTokens(db, tokens, tenantId) {
   if (!tokens.length) return;
   const placeholders = tokens.map(() => "?").join(",");
+  const params = [tenantId, ...tokens];
   await db.run(
-    `UPDATE push_tokens SET active = 0, updatedAt = CURRENT_TIMESTAMP WHERE token IN (${placeholders})`,
-    tokens
+    `UPDATE push_tokens SET active = 0, updatedAt = CURRENT_TIMESTAMP WHERE tenant_id = ? AND token IN (${placeholders})`,
+    params
   );
 }
 
@@ -353,12 +442,13 @@ async function sendExpoPushChunk(chunk) {
   return Array.isArray(payload?.data) ? payload.data : [];
 }
 
-async function sendPushToRoles({ roles, title, body, data = {} }) {
+async function sendPushToRoles({ tenantId, roles, title, body, data = {} }) {
   const db = await dbPromise;
-  const pushDevices = await listPushTokensByRoles(db, roles);
+  const safeTenantId = toTenantId(tenantId, DEFAULT_TENANT_ID);
+  const pushDevices = await listPushTokensByRoles(db, roles, safeTenantId);
   if (!pushDevices.length) {
     console.log(
-      `[push] roles=${sanitizePushRoleList(roles).join(",")} targets=0 sent=0 inactive=0 reason=no-active-tokens`
+      `[push] tenant=${safeTenantId} roles=${sanitizePushRoleList(roles).join(",")} targets=0 sent=0 inactive=0 reason=no-active-tokens`
     );
     return { sent: 0, inactive: 0 };
   }
@@ -367,7 +457,7 @@ async function sendPushToRoles({ roles, title, body, data = {} }) {
   if (!validPushDevices.length) {
     console.warn("[push] no hay tokens Expo validos activos para envio.");
     console.log(
-      `[push] roles=${sanitizePushRoleList(roles).join(",")} targets=0 sent=0 inactive=0 reason=no-valid-expo-tokens`
+      `[push] tenant=${safeTenantId} roles=${sanitizePushRoleList(roles).join(",")} targets=0 sent=0 inactive=0 reason=no-valid-expo-tokens`
     );
     return { sent: 0, inactive: 0 };
   }
@@ -415,10 +505,10 @@ async function sendPushToRoles({ roles, title, body, data = {} }) {
 
   const uniqueStale = [...new Set(staleTokens.filter(Boolean))];
   if (uniqueStale.length) {
-    await disablePushTokens(db, uniqueStale);
+    await disablePushTokens(db, uniqueStale, safeTenantId);
   }
   console.log(
-    `[push] roles=${sanitizePushRoleList(roles).join(",")} targets=${uniqueDevices.length} sent=${sent} inactive=${uniqueStale.length}`
+    `[push] tenant=${safeTenantId} roles=${sanitizePushRoleList(roles).join(",")} targets=${uniqueDevices.length} sent=${sent} inactive=${uniqueStale.length}`
   );
   return { sent, inactive: uniqueStale.length };
 }
@@ -436,7 +526,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.get("/", (_req, res) => {
-  res.type("text").send("API Droguería Renacer OK");
+  res.type("text").send("API WISAND OK");
 });
 
 /* ============================
@@ -445,44 +535,111 @@ app.get("/", (_req, res) => {
 app.post("/auth/login", async (req, res) => {
   const ip = getClientIp(req);
   if (isLoginBlocked(ip)) {
-    return res.status(429).json({ error: "Demasiados intentos. Intenta más tarde." });
+    return res.status(429).json({ error: "Demasiados intentos. Intenta mÃ¡s tarde." });
   }
 
   const { username = "", password = "" } = req.body || {};
+  const tenantId = pickTenantId(req);
   const u = String(username || "").trim();
   const p = String(password || "").trim();
   if (!u || !p) {
     recordLoginFailure(ip);
-    return res.status(400).json({ error: "Usuario y contraseña requeridos" });
+    return res.status(400).json({ error: "Usuario y contraseÃ±a requeridos" });
   }
 
   const db = await dbPromise;
-  const user = await db.get("SELECT * FROM users WHERE username = ?", [u]);
+  const user = await db.get("SELECT * FROM users WHERE username = ? AND tenant_id = ?", [
+    u,
+    tenantId,
+  ]);
   if (!user) {
     recordLoginFailure(ip);
-    return res.status(401).json({ error: "Credenciales inválidas" });
+    return res.status(401).json({ error: "Credenciales invÃ¡lidas" });
   }
 
   const hash = user.passwordHash || user.passwordhash || "";
   const ok = await bcrypt.compare(p, hash);
   if (!ok) {
     recordLoginFailure(ip);
-    return res.status(401).json({ error: "Credenciales inválidas" });
+    return res.status(401).json({ error: "Credenciales invÃ¡lidas" });
   }
 
   clearLoginAttempts(ip);
   const token = signToken(user);
   res.json({
     token,
-    user: { id: user.id, username: user.username, role: user.role },
+    user: {
+      id: user.id,
+      tenant_id: toTenantId(pick(user, "tenant_id", "tenantId"), tenantId),
+      username: user.username,
+      role: user.role,
+    },
   });
 });
 
 app.get("/auth/me", authRequired, async (req, res) => {
   const db = await dbPromise;
-  const user = await db.get("SELECT id, username, role FROM users WHERE id = ?", [req.user.id]);
-  if (!user) return res.status(401).json({ error: "Usuario inválido" });
+  const user = await db.get(
+    "SELECT id, tenant_id, username, role FROM users WHERE id = ? AND tenant_id = ?",
+    [req.user.id, req.user.tenant_id]
+  );
+  if (!user) return res.status(401).json({ error: "Usuario invÃ¡lido" });
   res.json(user);
+});
+
+app.post("/internal/tenants", masterKeyRequired, async (req, res) => {
+  const tenantName = String(pick(req.body, "name", "tenantName") || "").trim();
+  const ownerUsername = String(pick(req.body, "ownerUsername", "username") || "").trim();
+  const ownerPassword = String(pick(req.body, "ownerPassword", "password") || "").trim();
+  const ownerRole = String(pick(req.body, "ownerRole", "role") || "owner")
+    .trim()
+    .toLowerCase();
+
+  if (!tenantName) return res.status(400).json({ error: "name es requerido" });
+  if (!ownerUsername || !ownerPassword) {
+    return res.status(400).json({ error: "ownerUsername y ownerPassword son requeridos" });
+  }
+  if (ownerRole !== "owner") {
+    return res.status(400).json({ error: "ownerRole debe ser 'owner'" });
+  }
+
+  const db = await dbPromise;
+  const existingTenant = await db.get("SELECT id FROM tenants WHERE name = ?", [tenantName]);
+  if (existingTenant?.id) {
+    return res.status(409).json({ error: "El tenant ya existe" });
+  }
+
+  const tenantInsert = await db.run("INSERT INTO tenants (name) VALUES (?)", [tenantName]);
+  const tenantId = toInt(tenantInsert?.lastID, 0);
+  if (!tenantId) {
+    return res.status(500).json({ error: "No se pudo crear el tenant" });
+  }
+
+  try {
+    const hash = await bcrypt.hash(ownerPassword, 10);
+    const ownerInsert = await db.run(
+      "INSERT INTO users (tenant_id, username, passwordHash, role) VALUES (?,?,?,?)",
+      [tenantId, ownerUsername, hash, ownerRole]
+    );
+    return res.status(201).json({
+      tenant: {
+        id: tenantId,
+        name: tenantName,
+      },
+      owner: {
+        id: ownerInsert.lastID,
+        tenant_id: tenantId,
+        username: ownerUsername,
+        role: ownerRole,
+      },
+    });
+  } catch (error) {
+    await db.run("DELETE FROM tenants WHERE id = ?", [tenantId]);
+    if (/unique/i.test(String(error?.message || ""))) {
+      return res.status(409).json({ error: "ownerUsername ya existe" });
+    }
+    throw error;
+  }
 });
 
 /* ============================
@@ -492,6 +649,7 @@ app.post("/notifications/register", authRequired, async (req, res) => {
   const token = String(req.body?.token || "").trim();
   const platform = String(req.body?.platform || "").trim().toLowerCase();
   const deviceId = String(req.body?.deviceId || "").trim();
+  const tenantId = req.user.tenant_id;
   if (!isExpoPushToken(token)) {
     console.warn(
       `[push-register] rejected user=${req.user?.id || "?"} role=${req.user?.role || "?"} platform=${platform || "-"} token=${maskPushToken(
@@ -502,15 +660,18 @@ app.post("/notifications/register", authRequired, async (req, res) => {
   }
 
   const db = await dbPromise;
-  const existing = await db.get("SELECT id FROM push_tokens WHERE token = ?", [token]);
+  const existing = await db.get("SELECT id FROM push_tokens WHERE token = ? AND tenant_id = ?", [
+    token,
+    tenantId,
+  ]);
   if (existing?.id) {
     await db.run(
       `
       UPDATE push_tokens
       SET userId = ?, role = ?, platform = ?, deviceId = ?, active = 1, updatedAt = CURRENT_TIMESTAMP
-      WHERE id = ?
+      WHERE id = ? AND tenant_id = ?
       `,
-      [req.user.id, req.user.role, platform || null, deviceId || null, existing.id]
+      [req.user.id, req.user.role, platform || null, deviceId || null, existing.id, tenantId]
     );
     console.log(
       `[push-register] ok user=${req.user.id} role=${req.user.role} platform=${platform || "-"} updated=true token=${maskPushToken(
@@ -520,13 +681,20 @@ app.post("/notifications/register", authRequired, async (req, res) => {
     return res.json({ ok: true, updated: true });
   }
 
-  await db.run(
-    `
-    INSERT INTO push_tokens (userId, role, platform, deviceId, token, active, updatedAt)
-    VALUES (?,?,?,?,?,1,CURRENT_TIMESTAMP)
-    `,
-    [req.user.id, req.user.role, platform || null, deviceId || null, token]
-  );
+  try {
+    await db.run(
+      `
+      INSERT INTO push_tokens (tenant_id, userId, role, platform, deviceId, token, active, updatedAt)
+      VALUES (?,?,?,?,?,?,1,CURRENT_TIMESTAMP)
+      `,
+      [tenantId, req.user.id, req.user.role, platform || null, deviceId || null, token]
+    );
+  } catch (error) {
+    if (/unique/i.test(String(error?.message || ""))) {
+      return res.status(409).json({ error: "Token push ya registrado para otro tenant" });
+    }
+    throw error;
+  }
   console.log(
     `[push-register] ok user=${req.user.id} role=${req.user.role} platform=${platform || "-"} updated=false token=${maskPushToken(
       token
@@ -546,9 +714,9 @@ app.post("/notifications/unregister", authRequired, async (req, res) => {
     `
     UPDATE push_tokens
     SET active = 0, updatedAt = CURRENT_TIMESTAMP
-    WHERE token = ? AND userId = ?
+    WHERE token = ? AND userId = ? AND tenant_id = ?
     `,
-    [token, req.user.id]
+    [token, req.user.id, req.user.tenant_id]
   );
   console.log(
     `[push-unregister] ok user=${req.user.id} role=${req.user.role} token=${maskPushToken(token)}`
@@ -559,40 +727,62 @@ app.post("/notifications/unregister", authRequired, async (req, res) => {
 /* ============================
    Usuarios (owner)
 ============================ */
-app.get("/users", authRequired, ownerOnly, async (_req, res) => {
+app.get("/users", authRequired, ownerOnly, async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const db = await dbPromise;
-  const rows = await db.all("SELECT id, username, role, createdAt FROM users ORDER BY id ASC");
+  const rows = await db.all(
+    "SELECT id, tenant_id, username, role, createdAt FROM users WHERE tenant_id = ? ORDER BY id ASC",
+    [tenantId]
+  );
   res.json(rows);
 });
 
 app.post("/users", authRequired, ownerOnly, async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const { username = "", password = "", role = "staff" } = req.body || {};
   const u = String(username || "").trim();
   const p = String(password || "").trim();
   const r = String(role || "staff").trim();
-  if (!u || !p) return res.status(400).json({ error: "Usuario y contraseña requeridos" });
-  if (!["owner", "staff"].includes(r)) return res.status(400).json({ error: "Rol inválido" });
+  if (!u || !p) return res.status(400).json({ error: "Usuario y contraseÃ±a requeridos" });
+  if (!["owner", "staff"].includes(r)) return res.status(400).json({ error: "Rol invÃ¡lido" });
 
   const db = await dbPromise;
-  const exists = await db.get("SELECT id FROM users WHERE username = ?", [u]);
+  const exists = await db.get("SELECT id FROM users WHERE username = ? AND tenant_id = ?", [
+    u,
+    tenantId,
+  ]);
   if (exists) return res.status(409).json({ error: "Usuario ya existe" });
 
   const hash = await bcrypt.hash(p, 10);
-  const result = await db.run(
-    "INSERT INTO users (username, passwordHash, role) VALUES (?,?,?)",
-    [u, hash, r]
-  );
+  let result;
+  try {
+    result = await db.run("INSERT INTO users (tenant_id, username, passwordHash, role) VALUES (?,?,?,?)", [
+      tenantId,
+      u,
+      hash,
+      r,
+    ]);
+  } catch (error) {
+    if (/unique/i.test(String(error?.message || ""))) {
+      return res.status(409).json({ error: "Usuario ya existe" });
+    }
+    throw error;
+  }
 
-  res.json({ id: result.lastID, username: u, role: r });
+  res.json({ id: result.lastID, tenant_id: tenantId, username: u, role: r });
 });
 
 app.put("/users/:id", authRequired, ownerOnly, async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const id = toInt(req.params.id, 0);
-  if (!id) return res.status(400).json({ error: "ID inválido" });
+  if (!id) return res.status(400).json({ error: "ID invÃ¡lido" });
 
   const { password, role, username } = req.body || {};
   const db = await dbPromise;
-  const targetUser = await db.get("SELECT id, role FROM users WHERE id = ?", [id]);
+  const targetUser = await db.get("SELECT id, role FROM users WHERE id = ? AND tenant_id = ?", [
+    id,
+    tenantId,
+  ]);
   if (!targetUser) return res.status(404).json({ error: "Usuario no encontrado" });
   const nextRoleRaw = role ? String(role).trim().toLowerCase() : "";
   if (nextRoleRaw && !["owner", "staff"].includes(nextRoleRaw)) {
@@ -600,7 +790,10 @@ app.put("/users/:id", authRequired, ownerOnly, async (req, res) => {
   }
   const currentRole = String(targetUser.role || "").trim().toLowerCase();
   if (nextRoleRaw === "staff" && currentRole === "owner") {
-    const ownersRow = await db.get("SELECT COUNT(*) as c FROM users WHERE role = 'owner'");
+    const ownersRow = await db.get(
+      "SELECT COUNT(*) as c FROM users WHERE role = 'owner' AND tenant_id = ?",
+      [tenantId]
+    );
     const ownerCount = Number(ownersRow?.c ?? ownersRow?.count ?? 0);
     if (ownerCount <= 1) {
       return res.status(409).json({ error: "No se puede cambiar el ultimo owner a staff." });
@@ -609,18 +802,40 @@ app.put("/users/:id", authRequired, ownerOnly, async (req, res) => {
 
   if (username && String(username).trim()) {
     const u = String(username).trim();
-    const exists = await db.get("SELECT id FROM users WHERE username = ? AND id <> ?", [u, id]);
+    const exists = await db.get(
+      "SELECT id FROM users WHERE username = ? AND id <> ? AND tenant_id = ?",
+      [u, id, tenantId]
+    );
     if (exists) return res.status(409).json({ error: "Usuario ya existe" });
-    await db.run("UPDATE users SET username = ? WHERE id = ?", [u, id]);
+    try {
+      await db.run("UPDATE users SET username = ? WHERE id = ? AND tenant_id = ?", [
+        u,
+        id,
+        tenantId,
+      ]);
+    } catch (error) {
+      if (/unique/i.test(String(error?.message || ""))) {
+        return res.status(409).json({ error: "Usuario ya existe" });
+      }
+      throw error;
+    }
   }
 
   if (password && String(password).trim()) {
     const hash = await bcrypt.hash(String(password).trim(), 10);
-    await db.run("UPDATE users SET passwordHash = ? WHERE id = ?", [hash, id]);
+    await db.run("UPDATE users SET passwordHash = ? WHERE id = ? AND tenant_id = ?", [
+      hash,
+      id,
+      tenantId,
+    ]);
   }
 
   if (nextRoleRaw) {
-    await db.run("UPDATE users SET role = ? WHERE id = ?", [nextRoleRaw, id]);
+    await db.run("UPDATE users SET role = ? WHERE id = ? AND tenant_id = ?", [
+      nextRoleRaw,
+      id,
+      tenantId,
+    ]);
   }
 
   res.json({ ok: true });
@@ -629,19 +844,20 @@ app.put("/users/:id", authRequired, ownerOnly, async (req, res) => {
 /* ============================
    Productos
 ============================ */
-app.get("/products", async (req, res) => {
+app.get("/products", authOptional, async (req, res) => {
+  const tenantId = getRequestTenantId(req);
   const page = Math.max(1, toInt(req.query?.page, 1));
   const requestedLimit = toInt(req.query?.limit, 24);
   const limit = Math.min(100, Math.max(1, requestedLimit));
   const offset = (page - 1) * limit;
 
   const db = await dbPromise;
-  const totalRow = await db.get("SELECT COUNT(*) as c FROM products");
+  const totalRow = await db.get("SELECT COUNT(*) as c FROM products WHERE tenant_id = ?", [tenantId]);
   const total = Number(totalRow?.c ?? totalRow?.count ?? 0);
   const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
   const rows = await db.all(
-    "SELECT * FROM products ORDER BY id DESC LIMIT ? OFFSET ?",
-    [limit, offset]
+    "SELECT * FROM products WHERE tenant_id = ? ORDER BY id DESC LIMIT ? OFFSET ?",
+    [tenantId, limit, offset]
   );
 
   res.json({
@@ -654,6 +870,7 @@ app.get("/products", async (req, res) => {
 });
 
 app.post("/products", authRequired, async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const p = req.body || {};
   if (!p.nombre) return res.status(400).json({ error: "Nombre requerido" });
   const externalId = p.externalId || p.id || null;
@@ -661,8 +878,8 @@ app.post("/products", authRequired, async (req, res) => {
   const db = await dbPromise;
   if (externalId) {
     const existing = await db.get(
-      "SELECT id, nombre, stockCajas FROM products WHERE externalId = ?",
-      [externalId]
+      "SELECT id, nombre, stockCajas FROM products WHERE externalId = ? AND tenant_id = ?",
+      [externalId, tenantId]
     );
     if (existing && existing.id) {
       const previousStock = toInt(existing.stockCajas, Number.MAX_SAFE_INTEGER);
@@ -673,7 +890,7 @@ app.post("/products", authRequired, async (req, res) => {
           nombre = ?, descripcion = ?, categoria = ?, disponibilidad = ?, imagen = ?,
           precioCaja = ?, precioSobre = ?, precioUnidad = ?, sobresXCaja = ?, unidadesXSobre = ?, stockCajas = ?,
           ofertaActiva = ?, ofertaTexto = ?, ofertaPrecioCaja = ?, ofertaPrecioSobre = ?, updatedAt = CURRENT_TIMESTAMP
-        WHERE externalId = ?
+        WHERE externalId = ? AND tenant_id = ?
         `,
         [
           p.nombre || "",
@@ -692,11 +909,13 @@ app.post("/products", authRequired, async (req, res) => {
           toNumber(p.ofertaPrecioCaja),
           toNumber(p.ofertaPrecioSobre),
           externalId,
+          tenantId,
         ]
       );
       if (crossedIntoLowStock(previousStock, nextStock)) {
         runNonBlocking("stock-low-external-upsert", async () => {
           await sendPushToRoles({
+            tenantId,
             roles: PUSH_NOTIFY_ROLES,
             title: "Alerta de stock bajo",
             body: `${p.nombre || existing.nombre || "Producto"} quedo en ${nextStock} cajas.`,
@@ -717,12 +936,13 @@ app.post("/products", authRequired, async (req, res) => {
   const result = await db.run(
     `
     INSERT INTO products
-    (externalId, nombre, descripcion, categoria, disponibilidad, imagen,
+    (tenant_id, externalId, nombre, descripcion, categoria, disponibilidad, imagen,
      precioCaja, precioSobre, precioUnidad, sobresXCaja, unidadesXSobre, stockCajas,
      ofertaActiva, ofertaTexto, ofertaPrecioCaja, ofertaPrecioSobre, updatedAt)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, ?, CURRENT_TIMESTAMP)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, CURRENT_TIMESTAMP)
     `,
     [
+      tenantId,
       externalId,
       p.nombre,
       p.descripcion || "",
@@ -745,6 +965,7 @@ app.post("/products", authRequired, async (req, res) => {
   if (isLowStock(initialStock)) {
     runNonBlocking("stock-low-create", async () => {
       await sendPushToRoles({
+        tenantId,
         roles: PUSH_NOTIFY_ROLES,
         title: "Alerta de stock bajo",
         body: `${p.nombre || "Producto"} quedo en ${initialStock} cajas.`,
@@ -764,15 +985,17 @@ app.post("/products", authRequired, async (req, res) => {
 });
 
 app.put("/products/:id", authRequired, async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const id = toInt(req.params.id, 0);
-  if (!id) return res.status(400).json({ error: "ID inválido" });
+  if (!id) return res.status(400).json({ error: "ID invÃ¡lido" });
 
   const p = req.body || {};
   const db = await dbPromise;
   const existing = await db.get(
-    "SELECT id, nombre, stockCajas, externalId FROM products WHERE id = ?",
-    [id]
+    "SELECT id, nombre, stockCajas, externalId FROM products WHERE id = ? AND tenant_id = ?",
+    [id, tenantId]
   );
+  if (!existing?.id) return res.status(404).json({ error: "Producto no encontrado" });
   const previousStock = toInt(existing?.stockCajas, Number.MAX_SAFE_INTEGER);
   const nextStock = toInt(p.stockCajas, 0);
 
@@ -782,7 +1005,7 @@ app.put("/products/:id", authRequired, async (req, res) => {
       nombre = ?, descripcion = ?, categoria = ?, disponibilidad = ?, imagen = ?,
       precioCaja = ?, precioSobre = ?, precioUnidad = ?, sobresXCaja = ?, unidadesXSobre = ?, stockCajas = ?,
       ofertaActiva = ?, ofertaTexto = ?, ofertaPrecioCaja = ?, ofertaPrecioSobre = ?, updatedAt = CURRENT_TIMESTAMP
-    WHERE id = ?
+    WHERE id = ? AND tenant_id = ?
     `,
     [
       p.nombre || "",
@@ -801,12 +1024,14 @@ app.put("/products/:id", authRequired, async (req, res) => {
       toNumber(p.ofertaPrecioCaja),
       toNumber(p.ofertaPrecioSobre),
       id,
+      tenantId,
     ]
   );
 
   if (existing?.id && crossedIntoLowStock(previousStock, nextStock)) {
     runNonBlocking("stock-low-id-update", async () => {
       await sendPushToRoles({
+        tenantId,
         roles: PUSH_NOTIFY_ROLES,
         title: "Alerta de stock bajo",
         body: `${p.nombre || existing.nombre || "Producto"} quedo en ${nextStock} cajas.`,
@@ -826,8 +1051,9 @@ app.put("/products/:id", authRequired, async (req, res) => {
 });
 
 app.put("/products/external/:externalId", authRequired, async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const externalId = String(req.params.externalId || "").trim();
-  if (!externalId) return res.status(400).json({ error: "externalId inválido" });
+  if (!externalId) return res.status(400).json({ error: "externalId invÃ¡lido" });
 
   const p = req.body || {};
   const db = await dbPromise;
@@ -838,7 +1064,7 @@ app.put("/products/external/:externalId", authRequired, async (req, res) => {
       nombre = ?, descripcion = ?, categoria = ?, disponibilidad = ?, imagen = ?,
       precioCaja = ?, precioSobre = ?, precioUnidad = ?, sobresXCaja = ?, unidadesXSobre = ?, stockCajas = ?,
       ofertaActiva = ?, ofertaTexto = ?, ofertaPrecioCaja = ?, ofertaPrecioSobre = ?, updatedAt = CURRENT_TIMESTAMP
-    WHERE externalId = ?
+    WHERE externalId = ? AND tenant_id = ?
     `,
     [
       p.nombre || "",
@@ -857,6 +1083,7 @@ app.put("/products/external/:externalId", authRequired, async (req, res) => {
       toNumber(p.ofertaPrecioCaja),
       toNumber(p.ofertaPrecioSobre),
       externalId,
+      tenantId,
     ]
   );
 
@@ -864,6 +1091,7 @@ app.put("/products/external/:externalId", authRequired, async (req, res) => {
   if (isLowStock(nextStock)) {
     runNonBlocking("stock-low-external-update", async () => {
       await sendPushToRoles({
+        tenantId,
         roles: PUSH_NOTIFY_ROLES,
         title: "Alerta de stock bajo",
         body: `${p.nombre || "Producto"} quedo en ${nextStock} cajas.`,
@@ -882,20 +1110,25 @@ app.put("/products/external/:externalId", authRequired, async (req, res) => {
 });
 
 app.delete("/products/:id", authRequired, async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const id = toInt(req.params.id, 0);
-  if (!id) return res.status(400).json({ error: "ID inválido" });
+  if (!id) return res.status(400).json({ error: "ID invÃ¡lido" });
 
   const db = await dbPromise;
-  await db.run("DELETE FROM products WHERE id = ?", [id]);
+  await db.run("DELETE FROM products WHERE id = ? AND tenant_id = ?", [id, tenantId]);
   res.json({ ok: true });
 });
 
 app.delete("/products/external/:externalId", authRequired, async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const externalId = String(req.params.externalId || "").trim();
-  if (!externalId) return res.status(400).json({ error: "externalId inválido" });
+  if (!externalId) return res.status(400).json({ error: "externalId invÃ¡lido" });
 
   const db = await dbPromise;
-  await db.run("DELETE FROM products WHERE externalId = ?", [externalId]);
+  await db.run("DELETE FROM products WHERE externalId = ? AND tenant_id = ?", [
+    externalId,
+    tenantId,
+  ]);
   res.json({ ok: true });
 });
 
@@ -903,11 +1136,15 @@ app.delete("/products/external/:externalId", authRequired, async (req, res) => {
    Pedidos
 ============================ */
 app.get("/orders", authRequired, async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const db = await dbPromise;
   const status = req.query.estado;
   const rows = status
-    ? await db.all("SELECT * FROM orders WHERE estado = ? ORDER BY id DESC", [status])
-    : await db.all("SELECT * FROM orders ORDER BY id DESC");
+    ? await db.all("SELECT * FROM orders WHERE tenant_id = ? AND estado = ? ORDER BY id DESC", [
+        tenantId,
+        status,
+      ])
+    : await db.all("SELECT * FROM orders WHERE tenant_id = ? ORDER BY id DESC", [tenantId]);
   res.json(
     rows.map((r) => ({
       ...r,
@@ -916,7 +1153,8 @@ app.get("/orders", authRequired, async (req, res) => {
   );
 });
 
-app.post("/orders", async (req, res) => {
+app.post("/orders", authOptional, async (req, res) => {
+  const tenantId = getRequestTenantId(req);
   const o = req.body || {};
   const items = Array.isArray(o.items) ? o.items : [];
   const total = toNumber(o.total);
@@ -925,7 +1163,10 @@ app.post("/orders", async (req, res) => {
 
   const db = await dbPromise;
   if (externalId) {
-    const existing = await db.get("SELECT id FROM orders WHERE externalId = ?", [externalId]);
+    const existing = await db.get(
+      "SELECT id FROM orders WHERE externalId = ? AND tenant_id = ?",
+      [externalId, tenantId]
+    );
     if (existing && existing.id) {
       return res.json({ id: existing.id, ok: true, existing: true });
     }
@@ -933,10 +1174,11 @@ app.post("/orders", async (req, res) => {
   const result = await db.run(
     `
     INSERT INTO orders
-    (externalId, clienteNombre, clienteTelefono, clienteDireccion, items, total, estado)
-    VALUES (?,?,?,?,?,?,?)
+    (tenant_id, externalId, clienteNombre, clienteTelefono, clienteDireccion, items, total, estado)
+    VALUES (?,?,?,?,?,?,?,?)
     `,
     [
+      tenantId,
       externalId,
       o.clienteNombre || "",
       o.clienteTelefono || "",
@@ -955,6 +1197,7 @@ app.post("/orders", async (req, res) => {
       const orderRef = externalId || `#${result.lastID}`;
       const customer = String(o.clienteNombre || "").trim() || "Cliente";
       await sendPushToRoles({
+        tenantId,
         roles: PUSH_NOTIFY_ROLES,
         title: "Nuevo pedido pendiente",
         body: `${customer} envio ${orderRef} por ${formatMoneyCop(total)}.`,
@@ -974,44 +1217,165 @@ app.post("/orders", async (req, res) => {
 });
 
 app.put("/orders/:id/status", authRequired, async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const id = toInt(req.params.id, 0);
-  if (!id) return res.status(400).json({ error: "ID inválido" });
+  if (!id) return res.status(400).json({ error: "ID invÃ¡lido" });
 
   const estado = (req.body?.estado || "").toLowerCase();
   if (!estado) return res.status(400).json({ error: "Estado requerido" });
 
   const db = await dbPromise;
-  await db.run("UPDATE orders SET estado = ? WHERE id = ?", [estado, id]);
+  const targetOrder = await db.get("SELECT id FROM orders WHERE id = ? AND tenant_id = ?", [id, tenantId]);
+  if (!targetOrder?.id) return res.status(404).json({ error: "Pedido no encontrado" });
+
+  await db.run("UPDATE orders SET estado = ? WHERE id = ? AND tenant_id = ?", [estado, id, tenantId]);
+
+  if (CLOSED_ORDER_STATES.has(estado)) {
+    await ensureSaleForClosedOrder(db, tenantId, id, req.user);
+  }
+
   res.json({ ok: true });
 });
 
 app.put("/orders/external/:externalId/status", authRequired, async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const externalId = String(req.params.externalId || "").trim();
-  if (!externalId) return res.status(400).json({ error: "externalId inválido" });
+  if (!externalId) return res.status(400).json({ error: "externalId invÃ¡lido" });
 
   const estado = (req.body?.estado || "").toLowerCase();
   if (!estado) return res.status(400).json({ error: "Estado requerido" });
 
   const db = await dbPromise;
-  await db.run("UPDATE orders SET estado = ? WHERE externalId = ?", [estado, externalId]);
+  const targetOrder = await db.get("SELECT id FROM orders WHERE externalId = ? AND tenant_id = ?", [
+    externalId,
+    tenantId,
+  ]);
+  if (!targetOrder?.id) return res.status(404).json({ error: "Pedido no encontrado" });
+
+  await db.run("UPDATE orders SET estado = ? WHERE id = ? AND tenant_id = ?", [
+    estado,
+    targetOrder.id,
+    tenantId,
+  ]);
+
+  if (CLOSED_ORDER_STATES.has(estado)) {
+    await ensureSaleForClosedOrder(db, tenantId, targetOrder.id, req.user);
+  }
+
   res.json({ ok: true });
 });
 
-app.delete("/orders", authRequired, ownerOnly, async (_req, res) => {
+app.delete("/orders", authRequired, ownerOnly, async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const db = await dbPromise;
-  await db.run("DELETE FROM orders");
+  await db.run("DELETE FROM orders WHERE tenant_id = ?", [tenantId]);
   res.json({ ok: true });
 });
+
+async function resolveOrderIdForSale(db, tenantId, rawOrderId, refId) {
+  let orderId = toInt(rawOrderId, 0);
+  if (!orderId && refId) {
+    const normalizedRef = String(refId || "").trim();
+    const parsedRefAsId = toInt(normalizedRef, 0);
+    if (parsedRefAsId > 0) {
+      orderId = parsedRefAsId;
+    } else if (normalizedRef) {
+      const orderByExternal = await db.get(
+        "SELECT id FROM orders WHERE externalId = ? AND tenant_id = ?",
+        [normalizedRef, tenantId]
+      );
+      orderId = toInt(orderByExternal?.id, 0);
+    }
+  }
+  if (!orderId) return null;
+  const order = await db.get("SELECT id FROM orders WHERE id = ? AND tenant_id = ?", [
+    orderId,
+    tenantId,
+  ]);
+  return order?.id ? toInt(order.id, 0) : null;
+}
+
+const CLOSED_ORDER_STATES = new Set(["aceptado", "cerrado", "completado", "finalizado", "closed"]);
+
+async function ensureSaleForClosedOrder(db, tenantId, orderId, actor) {
+  const safeOrderId = toInt(orderId, 0);
+  if (!safeOrderId) return { created: false, existing: false, reason: "invalid-order-id" };
+
+  const order = await db.get(
+    `
+    SELECT id, tenant_id, externalId, clienteNombre, clienteTelefono, total, items, estado
+    FROM orders
+    WHERE id = ? AND tenant_id = ?
+    `,
+    [safeOrderId, tenantId]
+  );
+  if (!order?.id) return { created: false, existing: false, reason: "order-not-found" };
+
+  const orderStatus = String(order.estado || "").trim().toLowerCase();
+  if (!CLOSED_ORDER_STATES.has(orderStatus)) {
+    return { created: false, existing: false, reason: "order-not-closed" };
+  }
+
+  const existingByOrder = await db.get("SELECT id FROM sales WHERE tenant_id = ? AND order_id = ?", [
+    tenantId,
+    safeOrderId,
+  ]);
+  if (existingByOrder?.id) {
+    return { created: false, existing: true, id: existingByOrder.id };
+  }
+
+  const items = safeJson(order.items, []);
+  const salePayload = [
+    tenantId,
+    safeOrderId,
+    pick(order, "externalId", "externalid") || `order:${safeOrderId}`,
+    toInt(actor?.id, 0),
+    String(actor?.username || ""),
+    String(order.clienteNombre || ""),
+    String(order.clienteTelefono || ""),
+    toNumber(order.total),
+    JSON.stringify(items),
+    "",
+    new Date().toISOString(),
+  ];
+
+  try {
+    const saleInsert = await db.run(
+      `
+      INSERT INTO sales
+      (tenant_id, order_id, refId, userId, userName, clienteNombre, clienteTelefono, total, items, metodoPago, fechaISO)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)
+      `,
+      salePayload
+    );
+    return { created: true, existing: false, id: saleInsert?.lastID };
+  } catch (error) {
+    if (/unique/i.test(String(error?.message || ""))) {
+      const existingOnConflict = await db.get(
+        "SELECT id FROM sales WHERE tenant_id = ? AND order_id = ?",
+        [tenantId, safeOrderId]
+      );
+      if (existingOnConflict?.id) {
+        return { created: false, existing: true, id: existingOnConflict.id };
+      }
+    }
+    throw error;
+  }
+}
 
 /* ============================
    Ventas
 ============================ */
 app.get("/sales", authRequired, async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const db = await dbPromise;
   const isOwner = req.user?.role === "owner";
   const rows = isOwner
-    ? await db.all("SELECT * FROM sales ORDER BY id DESC")
-    : await db.all("SELECT * FROM sales WHERE userId = ? ORDER BY id DESC", [req.user.id]);
+    ? await db.all("SELECT * FROM sales WHERE tenant_id = ? ORDER BY id DESC", [tenantId])
+    : await db.all("SELECT * FROM sales WHERE tenant_id = ? AND userId = ? ORDER BY id DESC", [
+        tenantId,
+        req.user.id,
+      ]);
 
   res.json(
     rows.map((r) => ({
@@ -1022,17 +1386,32 @@ app.get("/sales", authRequired, async (req, res) => {
 });
 
 app.post("/sales", authRequired, async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const s = req.body || {};
   const items = Array.isArray(s.items) ? s.items : [];
   const total = toNumber(s.total);
   const refId = s.refId || null;
 
   const db = await dbPromise;
+  const requestedOrderId = toInt(pick(s, "orderId", "order_id"), 0);
+  const orderId = await resolveOrderIdForSale(db, tenantId, requestedOrderId, refId);
+  if (requestedOrderId > 0 && !orderId) {
+    return res.status(400).json({ error: "orderId no pertenece al tenant actual" });
+  }
+  if (orderId) {
+    const existingByOrder = await db.get(
+      "SELECT id FROM sales WHERE tenant_id = ? AND order_id = ?",
+      [tenantId, orderId]
+    );
+    if (existingByOrder?.id) {
+      return res.json({ id: existingByOrder.id, ok: true, existing: true });
+    }
+  }
   if (refId) {
-    const existing = await db.get("SELECT id FROM sales WHERE refId = ? AND userId = ?", [
-      refId,
-      req.user.id,
-    ]);
+    const existing = await db.get(
+      "SELECT id FROM sales WHERE tenant_id = ? AND refId = ? AND userId = ?",
+      [tenantId, refId, req.user.id]
+    );
     if (existing && existing.id) {
       return res.json({ id: existing.id, ok: true, existing: true });
     }
@@ -1041,10 +1420,12 @@ app.post("/sales", authRequired, async (req, res) => {
   const result = await db.run(
     `
     INSERT INTO sales
-    (refId, userId, userName, clienteNombre, clienteTelefono, total, items, metodoPago, fechaISO)
-    VALUES (?,?,?,?,?,?,?,?,?)
+    (tenant_id, order_id, refId, userId, userName, clienteNombre, clienteTelefono, total, items, metodoPago, fechaISO)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?)
     `,
     [
+      tenantId,
+      orderId,
       refId,
       req.user.id,
       req.user.username || "",
@@ -1060,30 +1441,36 @@ app.post("/sales", authRequired, async (req, res) => {
   res.json({ id: result.lastID });
 });
 
-app.delete("/sales", authRequired, ownerOnly, async (_req, res) => {
+app.delete("/sales", authRequired, ownerOnly, async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const db = await dbPromise;
-  await db.run("DELETE FROM sales");
+  await db.run("DELETE FROM sales WHERE tenant_id = ?", [tenantId]);
   res.json({ ok: true });
 });
 
 /* ============================
-   Reseñas
+   ReseÃ±as
 ============================ */
-app.get("/reviews", async (_req, res) => {
+app.get("/reviews", authOptional, async (req, res) => {
+  const tenantId = getRequestTenantId(req);
   const db = await dbPromise;
-  const rows = await db.all("SELECT * FROM reviews ORDER BY id DESC");
+  const rows = await db.all("SELECT * FROM reviews WHERE tenant_id = ? ORDER BY id DESC", [
+    tenantId,
+  ]);
   res.json(rows);
 });
 
-app.post("/reviews", async (req, res) => {
+app.post("/reviews", authOptional, async (req, res) => {
+  const tenantId = getRequestTenantId(req);
   const r = req.body || {};
   const db = await dbPromise;
   const result = await db.run(
     `
-    INSERT INTO reviews (nombre, telefono, rating, texto, verificada)
-    VALUES (?,?,?,?,?)
+    INSERT INTO reviews (tenant_id, nombre, telefono, rating, texto, verificada)
+    VALUES (?,?,?,?,?,?)
     `,
     [
+      tenantId,
       r.nombre || "",
       r.telefono || "",
       toInt(r.rating),
@@ -1095,9 +1482,10 @@ app.post("/reviews", async (req, res) => {
   res.json({ id: result.lastID });
 });
 
-app.delete("/reviews", authRequired, ownerOnly, async (_req, res) => {
+app.delete("/reviews", authRequired, ownerOnly, async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const db = await dbPromise;
-  await db.run("DELETE FROM reviews");
+  await db.run("DELETE FROM reviews WHERE tenant_id = ?", [tenantId]);
   res.json({ ok: true });
 });
 
