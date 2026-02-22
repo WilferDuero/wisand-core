@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "453243050962",
-    "project_id": "drogueria-renacer-admin",
-    "storage_bucket": "drogueria-renacer-admin.firebasestorage.app"
+    "project_number": "000000000000",
+    "project_id": "wisand-core-admin",
+    "storage_bucket": "wisand-core-admin.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:453243050962:android:81d034628e1a0e12d0460b",
+        "mobilesdk_app_id": "1:000000000000:android:placeholderdev",
         "android_client_info": {
-          "package_name": "com.drogueriarenacer.adminmob"
+          "package_name": "com.wisand.adminmobile.dev"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDVNRKCeElTnNDdJNxUBLvzJbozvo24GAA"
+          "current_key": "REPLACE_WITH_FIREBASE_WEB_API_KEY"
         }
       ],
       "services": {
@@ -26,15 +26,15 @@
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:453243050962:android:d207bfcb5776161ed0460b",
+        "mobilesdk_app_id": "1:000000000000:android:placeholderprod",
         "android_client_info": {
-          "package_name": "com.drogueriarenacer.adminmobile"
+          "package_name": "com.wisand.adminmobile"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDVNRKCeElTnNDdJNxUBLvzJbozvo24GAA"
+          "current_key": "REPLACE_WITH_FIREBASE_WEB_API_KEY"
         }
       ],
       "services": {
