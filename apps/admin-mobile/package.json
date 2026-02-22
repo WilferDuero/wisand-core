@@ -1,7 +1,8 @@
 {
-  "name": "admin-mobile",
-  "version": "1.0.0",
+  "name": "wisand-core-admin",
+  "version": "0.1.0",
   "main": "index.ts",
+  "description": "WISAND Admin App - Mobile management interface",
   "scripts": {
     "start": "expo start",
     "start:tunnel": "expo start --tunnel -c",

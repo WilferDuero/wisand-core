@@ -1,14 +1,14 @@
 {
-  "name": "server",
-  "version": "1.0.0",
-  "description": "",
+  "name": "wisand-core-api",
+  "version": "0.1.0",
+  "description": "WISAND Core - Multi-tenant business management platform",
   "main": "index.js",
   "scripts": {
     "dev": "node index.js",
     "start": "node index.js"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["wisand", "multi-tenant", "business-platform", "saas"],
+  "author": "Wilfer Duero",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
