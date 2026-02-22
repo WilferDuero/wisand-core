@@ -1,4 +1,4 @@
-const PROD_API_BASE_URL = "https://drogueria-renacer.onrender.com";
+﻿const PROD_API_BASE_URL = "https://wisand.onrender.com";
 const DEV_API_BASE_URL = PROD_API_BASE_URL;
 const DEFAULT_TIMEOUT_MS = 12000;
 const DEFAULT_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
@@ -49,11 +49,23 @@ const readPushProjectId = () => {
   return null;
 };
 
+const readTenantId = () => {
+  const raw = process.env.EXPO_PUBLIC_TENANT_ID;
+  const parsed = Number(raw);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return Math.floor(parsed);
+  }
+  return 1;
+};
+
 export const ENV = {
-  appName: "Drogueria Renacer Admin",
+  appName: "WISAND Admin",
   apiBaseUrl: readApiBaseUrl(),
   apiTimeoutMs: readTimeout(),
   sessionIdleTimeoutMs: readIdleTimeout(),
   autoSyncIntervalMs: readAutoSyncInterval(),
   pushProjectId: readPushProjectId(),
+  tenantId: readTenantId(),
 } as const;
+
+

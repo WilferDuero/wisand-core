@@ -2,6 +2,7 @@ export type UserRole = "owner" | "staff";
 
 export interface AuthUser {
   id: number;
+  tenant_id?: number;
   username: string;
   role: UserRole;
 }
@@ -94,6 +95,7 @@ export interface SaleItem {
 
 export interface Sale {
   id?: number;
+  orderId?: number | null;
   refId?: string | null;
   userId?: number | null;
   userName?: string;
@@ -107,6 +109,7 @@ export interface Sale {
 }
 
 export interface SalePayload {
+  orderId?: number;
   refId?: string;
   clienteNombre?: string;
   clienteTelefono?: string;

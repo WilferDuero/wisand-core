@@ -1,7 +1,7 @@
-# Flujo Git Simple (Tienda + App + Backend)
+﻿# Flujo Git Simple (Tienda + App + Backend)
 
 ## 1) Estado actual del proyecto
-- Repositorio unico: `Drogueria_Renacer` (monorepo).
+- Repositorio unico: `wisand-core` (monorepo).
 - Backend unico (Render): lo consumen tienda web y app movil admin.
 - Fronts separados dentro del mismo proyecto:
   - Tienda/PWA: raiz (`js`, `admin.html`, etc.)
@@ -9,7 +9,7 @@
 
 ## 2) Flujo recomendado para cada cambio
 ```powershell
-cd "c:\Users\Wilfer Duero\Desktop\Drogueria_Renacer - App-Movil"
+cd "c:\Users\Wilfer Duero\Desktop\wisand-core"
 git checkout main
 git pull origin main
 git checkout -b <tipo>/<modulo>-<resumen-corto>
@@ -51,3 +51,5 @@ git status
 git branch --show-current
 git log --oneline -5
 ```
+
+

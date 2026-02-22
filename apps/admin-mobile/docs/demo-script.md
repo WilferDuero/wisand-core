@@ -1,4 +1,4 @@
-# Guion Demo Interna (Admin Mobile)
+﻿# Guion Demo Interna (Admin Mobile)
 
 ## Objetivo
 Mostrar en 8-12 minutos que la app admin movil cubre operaciones criticas sin tocar backend.
@@ -11,7 +11,7 @@ npm install
 npm run typecheck
 npm run start:usb
 ```
-2. Abrir app `Drogueria Renacer Admin` (Dev Client) en el telefono por USB.
+2. Abrir app `WISAND Admin` (Dev Client) en el telefono por USB.
 3. Tener 2 usuarios de prueba:
    - `staff`
    - `owner`
@@ -61,3 +61,4 @@ npm run start:usb
 
 ## Mensaje de cierre sugerido
 - "La app movil admin ya cubre login seguro, pedidos criticos con control de stock, ventas, productos, usuarios owner, resenas, alertas in-app, sync manual y exportaciones CSV."
+

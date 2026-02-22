@@ -31,15 +31,26 @@ export const apiClient = axios.create({
   timeout: ENV.apiTimeoutMs,
   headers: {
     "Content-Type": "application/json",
+    "X-Tenant-Id": String(ENV.tenantId),
   },
 });
 
 apiClient.interceptors.request.use((config) => {
+  const tenantHeader = String(ENV.tenantId);
+  const headers = config.headers as
+    | { set?: (key: string, value: string) => void }
+    | undefined;
+  if (headers?.set) {
+    headers.set("X-Tenant-Id", tenantHeader);
+  } else {
+    config.headers = {
+      ...(config.headers || {}),
+      "X-Tenant-Id": tenantHeader,
+    } as never;
+  }
+
   const token = resolveToken();
   if (token) {
-    const headers = config.headers as
-      | { set?: (key: string, value: string) => void }
-      | undefined;
     if (headers?.set) {
       headers.set("Authorization", `Bearer ${token}`);
     } else {

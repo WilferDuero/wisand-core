@@ -1,4 +1,4 @@
-# Prueba Guiada en Telefono (Smoke Run)
+﻿# Prueba Guiada en Telefono (Smoke Run)
 
 ## Datos de ejecucion
 - Fecha:
@@ -12,12 +12,12 @@
 cd apps/admin-mobile
 npm run start:usb
 ```
-2. Abrir app `Drogueria Renacer Admin` en el telefono.
+2. Abrir app `WISAND Admin` en el telefono.
 3. En Metro presionar `r` para recargar cuando hagas cambios.
 
 ## Pasos
 1. Abrir app desde Dev Client (o Expo Go si aplica).
-   - Verificar splash con logo de Drogueria Renacer.
+   - Verificar splash con logo de WISAND.
 2. Login con credenciales validas.
    - Probar ver/ocultar en campo de contrasena.
 3. Verificar Dashboard:
@@ -63,3 +63,4 @@ npm run start:usb
 - Estado final: `PASS` / `FAIL`
 - Errores encontrados:
 - Evidencia (capturas/logs):
+

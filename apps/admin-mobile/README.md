@@ -1,4 +1,4 @@
-# Drogueria Renacer - Admin Mobile (Expo)
+﻿# WISAND - Admin Mobile (Expo)
 
 App movil solo para panel admin (roles `owner` y `staff`) usando React Native + Expo + TypeScript.
 
@@ -25,7 +25,7 @@ App movil solo para panel admin (roles `owner` y `staff`) usando React Native + 
 - Exportacion CSV para productos, pedidos y ventas
 - Sync manual global (boton `Sincronizar` en header)
 - Auto-sync en foreground configurable (toggle en dashboard)
-- Splash inicial con logo de Drogueria Renacer
+- Splash inicial con logo de WISAND
 
 ## Endpoints usados
 - `GET /health`
@@ -56,11 +56,12 @@ App movil solo para panel admin (roles `owner` y `staff`) usando React Native + 
 2. Ajusta:
    - `EXPO_PUBLIC_API_BASE_URL`
    - `EXPO_PUBLIC_API_TIMEOUT_MS`
+   - `EXPO_PUBLIC_TENANT_ID` (default: `1`)
    - `EXPO_PUBLIC_SESSION_IDLE_TIMEOUT_MS`
    - `EXPO_PUBLIC_AUTO_SYNC_INTERVAL_MS`
    - `EXPO_PUBLIC_EAS_PROJECT_ID` (requerido para push en Expo)
 
-Si no defines variables, la app usa `https://drogueria-renacer.onrender.com` por defecto.
+Si no defines variables, la app usa `https://wisand.onrender.com` por defecto.
 
 ## Configuracion backend para push
 Configura en `server/.env` o en Render:
@@ -190,7 +191,7 @@ npm run start:usb
 ```
 
 4. Abrir app en el telefono:
-- Abre manualmente el app `Drogueria Renacer Admin` (Dev Client) en tu Android.
+- Abre manualmente el app `WISAND Admin` (Dev Client) en tu Android.
 - No necesitas QR para flujo USB.
 
 ## QA manual
@@ -201,3 +202,5 @@ npm run start:usb
 
 ## Pendientes v2
 - Ver `docs/v2-pending.md`.
+
+

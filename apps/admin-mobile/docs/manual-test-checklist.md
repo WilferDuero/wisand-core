@@ -1,10 +1,10 @@
-# Checklist Manual MVP Admin Mobile
+﻿# Checklist Manual MVP Admin Mobile
 
 Orden recomendado de ejecucion:
 - Ver `apps/admin-mobile/docs/checklist-ejecucion-orden.md`.
 
 ## 1. Login y sesion
-- [ ] Al abrir app en frio, splash muestra logo de Drogueria Renacer.
+- [ ] Al abrir app en frio, splash muestra logo de WISAND.
 - [ ] Login con usuario valido `owner`.
 - [ ] Login con usuario valido `staff`.
 - [ ] Login con credenciales invalidas muestra error.
@@ -127,3 +127,4 @@ Orden recomendado de ejecucion:
   - Pedido no cambia de estado.
   - No se toca stock.
   - No se crea venta.
+

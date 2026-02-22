@@ -3,6 +3,8 @@ import { Sale, SalePayload } from "../../types/domain";
 
 type RawSale = {
   id?: number;
+  orderId?: number;
+  order_id?: number;
   refId?: string;
   refid?: string;
   userId?: number;
@@ -25,6 +27,7 @@ type RawSale = {
 
 const normalizeSale = (raw: RawSale): Sale => ({
   id: Number(raw.id) || undefined,
+  orderId: Number(raw.orderId ?? raw.order_id) || null,
   refId: raw.refId ?? raw.refid ?? null,
   userId: Number(raw.userId ?? raw.userid) || null,
   userName: raw.userName ?? raw.username ?? "",

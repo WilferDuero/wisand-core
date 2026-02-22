@@ -1,4 +1,4 @@
-{
+﻿{
   "cli": {
     "version": ">= 16.0.0",
     "appVersionSource": "remote"
@@ -14,7 +14,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://drogueria-renacer.onrender.com",
+        "EXPO_PUBLIC_API_BASE_URL": "https://wisand.onrender.com",
         "EXPO_PUBLIC_API_TIMEOUT_MS": "12000",
         "EXPO_PUBLIC_SESSION_IDLE_TIMEOUT_MS": "1800000",
         "EXPO_PUBLIC_AUTO_SYNC_INTERVAL_MS": "60000",
@@ -26,7 +26,7 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://drogueria-renacer.onrender.com",
+        "EXPO_PUBLIC_API_BASE_URL": "https://wisand.onrender.com",
         "EXPO_PUBLIC_API_TIMEOUT_MS": "12000",
         "EXPO_PUBLIC_SESSION_IDLE_TIMEOUT_MS": "1800000",
         "EXPO_PUBLIC_AUTO_SYNC_INTERVAL_MS": "60000",
@@ -38,3 +38,4 @@
     "production": {}
   }
 }
+

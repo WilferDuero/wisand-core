@@ -1,5 +1,6 @@
 import { request } from "../client";
 import { AuthUser } from "../../types/domain";
+import { ENV } from "../../config/env";
 
 interface LoginResponse {
   token: string;
@@ -10,7 +11,7 @@ export const loginAdmin = (username: string, password: string) =>
   request<LoginResponse>({
     url: "/auth/login",
     method: "POST",
-    data: { username, password },
+    data: { username, password, tenant_id: ENV.tenantId },
   });
 
 export const fetchAuthMe = () =>
