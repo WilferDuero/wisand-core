@@ -1069,8 +1069,8 @@ function getProductsByItemRefs(items = []) {
       ]),
     ];
 
-    downloadTextFile("productos_renacer.csv", toCSV(rows, ";"));
-    showToast("📥 Exportado: productos_renacer.csv");
+    downloadTextFile("productos_wisand.csv", toCSV(rows, ";"));
+    showToast("📥 Exportado: productos_wisand.csv");
     localStorage.setItem(BACKUP_PRODUCTS_KEY, String(Date.now()));
     updateBackupLabels();
   });
@@ -1254,8 +1254,8 @@ function getProductsByItemRefs(items = []) {
         JSON.stringify(v.items || []),
       ]),
     ];
-    downloadTextFile("ventas_renacer.csv", toCSV(rows, ";"));
-    showToast("📥 Exportado: ventas_renacer.csv");
+    downloadTextFile("ventas_wisand.csv", toCSV(rows, ";"));
+    showToast("📥 Exportado: ventas_wisand.csv");
     localStorage.setItem(BACKUP_SALES_KEY, String(Date.now()));
     updateBackupLabels();
   });
@@ -1293,8 +1293,8 @@ function getProductsByItemRefs(items = []) {
       ]),
     ];
 
-    downloadTextFile("pedidos_renacer.csv", toCSV(rows, ";"));
-    showToast("📥 Exportado: pedidos_renacer.csv");
+    downloadTextFile("pedidos_wisand.csv", toCSV(rows, ";"));
+    showToast("📥 Exportado: pedidos_wisand.csv");
     localStorage.setItem(BACKUP_ORDERS_KEY, String(Date.now()));
     updateBackupLabels();
   });
@@ -1616,6 +1616,7 @@ function getProductsByItemRefs(items = []) {
       const ventas = loadSalesSafe();
       const sale = {
         fecha: new Date().toLocaleString("es-CO"),
+        orderId: Number(order?.numericId || order?.id) || undefined,
         refId: order.id,
         userId: currentUser?.id || null,
         userName: currentUser?.username || "",

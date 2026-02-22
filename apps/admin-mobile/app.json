@@ -1,28 +1,28 @@
-{
+﻿{
   "expo": {
-    "name": "Renacer Pharma",
-    "slug": "drogueria-renacer-admin",
+    "name": "WISAND Admin",
+    "slug": "wisand-admin",
     "version": "1.0.0",
-    "scheme": "drogueria-renacer-admin",
+    "scheme": "wisand-admin",
     "orientation": "portrait",
-    "icon": "./assets/logo-drogueria.png",
+    "icon": "./assets/icon.png",
     "primaryColor": "#21808d",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
     "splash": {
-      "image": "./assets/logo-drogueria.png",
+      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#fcfcf9"
     },
     "ios": {
-      "bundleIdentifier": "com.drogueriarenacer.adminmobile",
+      "bundleIdentifier": "com.wisand.adminmobile",
       "supportsTablet": true
     },
     "android": {
-      "package": "com.drogueriarenacer.adminmobile",
+      "package": "com.wisand.adminmobile",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/logo-drogueria.png",
+        "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#fcfcf9"
       },
       "edgeToEdgeEnabled": true,
@@ -54,3 +54,4 @@
     "owner": "wilferduero"
   }
 }
+

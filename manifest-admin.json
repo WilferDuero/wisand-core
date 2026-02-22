@@ -1,6 +1,6 @@
-{
-  "name": "Admin Drogueria Renacer",
-  "short_name": "Admin Renacer",
+﻿{
+  "name": "Admin WISAND",
+  "short_name": "Admin WISAND",
   "start_url": "/admin_login.html",
   "scope": "/",
   "display": "standalone",
@@ -8,10 +8,11 @@
   "theme_color": "#0b63d0",
   "icons": [
     {
-      "src": "assets/payments/Logo_Drogueria.svg",
+      "src": "assets/brand/wisand-logo.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
     }
   ]
 }
+

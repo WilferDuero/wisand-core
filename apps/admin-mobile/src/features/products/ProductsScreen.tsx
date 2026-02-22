@@ -417,7 +417,7 @@ export const ProductsScreen = () => {
 
     try {
       const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-      await exportCsvFile(`productos_renacer_${stamp}.csv`, rows);
+      await exportCsvFile(`productos_wisand_${stamp}.csv`, rows);
     } catch (e) {
       const message = e instanceof Error ? e.message : "No fue posible exportar productos.";
       Alert.alert("Error", message);

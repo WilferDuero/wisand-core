@@ -1,21 +1,20 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Droguería Renacer — Sistema Web</title>
-  <meta name="description" content="Droguería Renacer en Facatativá: medicamentos, vitaminas y cuidado personal. Domicilio local, asesoría farmacéutica y ofertas permanentes." />
-  <meta name="author" content="Droguería Renacer" />
-  <meta property="og:title" content="Droguería Renacer — Medicamentos y cuidado personal" />
-  <meta property="og:description" content="Domicilio local en Facatativá. Medicamentos originales, asesoría farmacéutica y ofertas permanentes." />
+  <title>WISAND â€” Sistema Web</title>
+  <meta name="description" content="WISAND en FacatativÃ¡: medicamentos, vitaminas y cuidado personal. Domicilio local, asesorÃ­a farmacÃ©utica y ofertas permanentes." />
+  <meta name="author" content="WISAND" />
+  <meta property="og:title" content="WISAND â€” Medicamentos y cuidado personal" />
+  <meta property="og:description" content="Domicilio local en FacatativÃ¡. Medicamentos originales, asesorÃ­a farmacÃ©utica y ofertas permanentes." />
   <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://drogueria-renacer.vercel.app/" />
-  <meta property="og:image" content="https://i.ibb.co/bRFJK7Hn/logo-drogueria.jpg" />
-  <meta property="og:site_name" content="Droguería Renacer" />
+  <meta property="og:url" content="https://wisand.vercel.app/" />
+  <meta property="og:image" content="https://wisand.vercel.app/assets/brand/wisand-logo.svg" />
+  <meta property="og:site_name" content="WISAND" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="theme-color" content="#0b63d0" />
-  <link rel="canonical" href="https://drogueria-renacer.vercel.app/" />
-  <link rel="preconnect" href="https://i.ibb.co" />
+  <link rel="canonical" href="https://wisand.vercel.app/" />
   <link rel="preconnect" href="https://r2cdn.perplexity.ai" crossorigin />
   <link rel="stylesheet" href="style.css?v=20260210h" />
 </head>
@@ -25,11 +24,11 @@
   <header class="site-header">
     <div style="display:flex;gap:12px;align-items:center">
       <div class="brand-logos">
-        <img src="assets/payments/Logo_Drogueria.svg" alt="Logo Droguería Renacer" class="brand-logo brand-logo--main">
+        <img src="assets/brand/wisand-logo.svg" alt="Logo WISAND" class="brand-logo brand-logo--main">
         <img src="assets/payments/Logo_Coopidrogas.svg" alt="Logo Coopidrogas" class="brand-logo brand-logo--partner">
       </div>
       <div class="brand-text">
-        <h1>Droguería Renacer</h1>
+        <h1>WISAND</h1>
         <div class="tagline">Tu salud es nuestra prioridad</div>
       </div>
     </div>
@@ -37,20 +36,20 @@
     <div class="header-center" style="max-width:700px">
       <div style="display:flex;gap:8px;align-items:center">
         <input id="searchInput" type="search" placeholder="Buscar medicamentos, vitaminas..." aria-label="Buscar productos" />
-        <select id="categorySelect" style="width:160px;padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06)" aria-label="Filtrar por categoría">
-          <option value="all">Todas las categorías</option>
+        <select id="categorySelect" style="width:160px;padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06)" aria-label="Filtrar por categorÃ­a">
+          <option value="all">Todas las categorÃ­as</option>
         </select>
       </div>
     </div>
 
     <div class="header-right">
-      <!-- ✅ Mis pedidos -->
+      <!-- âœ… Mis pedidos -->
       <button id="myOrdersBtn" class="icon-btn" aria-label="Ver mis pedidos" type="button">
-        📦 Mis pedidos <span id="myOrdersCount" class="badge-pill">0</span>
+        ðŸ“¦ Mis pedidos <span id="myOrdersCount" class="badge-pill">0</span>
       </button>
 
       <button id="cartBtn" class="icon-btn" aria-label="Abrir carrito" type="button">
-        🛒 <span id="cartCount">0</span>
+        ðŸ›’ <span id="cartCount">0</span>
       </button>
     </div>
   </header>
@@ -60,15 +59,15 @@
     <section class="hero">
       <div class="hero-inner container">
         <div class="hero-copy">
-          <div class="hero-eyebrow">Droguería local en Facatativá</div>
+          <div class="hero-eyebrow">WISAND local en FacatativÃ¡</div>
           <h2>Medicamentos, vitaminas y cuidado personal</h2>
-          <p>Entrega a domicilio en Facatativá · Atención farmacéutica · Ofertas permanentes</p>
+          <p>Entrega a domicilio en FacatativÃ¡ Â· AtenciÃ³n farmacÃ©utica Â· Ofertas permanentes</p>
           <div class="hero-actions">
             <a class="btn primary" target="_blank" href="https://wa.me/573133585508">Pedir por WhatsApp</a>
             <a class="btn ghost" href="#productsSection">Ver productos</a>
           </div>
           <div class="hero-badges">
-            <span class="pill hero-pill">Atención farmacéutica</span>
+            <span class="pill hero-pill">AtenciÃ³n farmacÃ©utica</span>
             <span class="pill hero-pill">Medicamentos originales</span>
             <span class="pill hero-pill">Entrega local</span>
           </div>
@@ -83,11 +82,11 @@
       </div>
     </section>
 
-    <!-- ✅ OFERTAS -->
+    <!-- âœ… OFERTAS -->
     <section id="offersSection" class="container cv-auto" style="display:none;">
       <div class="offers-head">
         <div class="offers-title">
-          🔥 Ofertas <span class="chip">Promo</span>
+          ðŸ”¥ Ofertas <span class="chip">Promo</span>
         </div>
         <div id="offersCount"></div>
       </div>
@@ -96,15 +95,15 @@
 
       <div class="offers-foot">
         <div id="offersPagination" class="offers-pagination" style="display:none;">
-          <button id="offersPrev" class="btn ghost" type="button" aria-label="Ofertas anterior">◀ Anterior</button>
-          <div id="offersPage" class="offers-page">Página 1 de 1</div>
-          <button id="offersNext" class="btn ghost" type="button" aria-label="Ofertas siguiente">Siguiente ▶</button>
+          <button id="offersPrev" class="btn ghost" type="button" aria-label="Ofertas anterior">â—€ Anterior</button>
+          <div id="offersPage" class="offers-page">PÃ¡gina 1 de 1</div>
+          <button id="offersNext" class="btn ghost" type="button" aria-label="Ofertas siguiente">Siguiente â–¶</button>
         </div>
       </div>
     </section>
 
     <section class="container cv-auto" id="categoriesSection">
-      <h3 class="section-title">Categorías destacadas</h3>
+      <h3 class="section-title">CategorÃ­as destacadas</h3>
       <div class="category-grid">
         <button class="category-card" type="button" data-category="all">Todos</button>
         <button class="category-card" type="button" data-category="Medicamentos">Medicamentos</button>
@@ -120,30 +119,30 @@
       <div id="productsGrid" class="products-grid" aria-live="polite"></div>
     </section>
 
-    <!-- ✅ Servicios / Confianza -->
+    <!-- âœ… Servicios / Confianza -->
     <section class="container cv-auto">
-      <h3 class="section-title">¿Por qué comprar con nosotros?</h3>
+      <h3 class="section-title">Â¿Por quÃ© comprar con nosotros?</h3>
       <div class="trust-grid">
         <div class="box trust-card">
-          <div class="trust-ico">🚚</div>
+          <div class="trust-ico">ðŸšš</div>
           <div>
-            <div class="trust-title">Domicilio en Facatativá</div>
-            <div class="muted">Entrega rápida y confirmación por WhatsApp.</div>
+            <div class="trust-title">Domicilio en FacatativÃ¡</div>
+            <div class="muted">Entrega rÃ¡pida y confirmaciÃ³n por WhatsApp.</div>
           </div>
         </div>
 
         <div class="box trust-card">
-          <div class="trust-ico">💊</div>
+          <div class="trust-ico">ðŸ’Š</div>
           <div>
-            <div class="trust-title">Asesoría responsable</div>
-            <div class="muted">Te ayudamos a elegir presentación y uso correcto.</div>
+            <div class="trust-title">AsesorÃ­a responsable</div>
+            <div class="muted">Te ayudamos a elegir presentaciÃ³n y uso correcto.</div>
           </div>
         </div>
 
         <div class="box trust-card">
-          <div class="trust-ico">💳</div>
+          <div class="trust-ico">ðŸ’³</div>
           <div>
-            <div class="trust-title">Pagos fáciles</div>
+            <div class="trust-title">Pagos fÃ¡ciles</div>
             <div class="muted">Nequi / Daviplata / Efectivo contra entrega.</div>
             <div class="payment-chips">
               <span class="payment-chip">
@@ -163,7 +162,7 @@
         </div>
 
         <div class="box trust-card">
-          <div class="trust-ico">✅</div>
+          <div class="trust-ico">âœ…</div>
           <div>
             <div class="trust-title">Productos verificados</div>
             <div class="muted">Control de stock y pedidos confirmados por el vendedor.</div>
@@ -176,12 +175,12 @@
       <h3 class="section-title">Beneficios reales</h3>
       <div class="benefits-grid">
         <div class="box benefit-item">
-          <div class="benefit-title">Atención profesional</div>
-          <div class="muted">Acompañamiento en el uso correcto y presentaciones.</div>
+          <div class="benefit-title">AtenciÃ³n profesional</div>
+          <div class="muted">AcompaÃ±amiento en el uso correcto y presentaciones.</div>
         </div>
         <div class="box benefit-item">
           <div class="benefit-title">Promos semanales</div>
-          <div class="muted">Ofertas rotativas según disponibilidad.</div>
+          <div class="muted">Ofertas rotativas segÃºn disponibilidad.</div>
         </div>
         <div class="box benefit-item">
           <div class="benefit-title">Control de stock</div>
@@ -190,7 +189,7 @@
       </div>
     </section>
 
-    <!-- ✅ Opiniones / Reseñas -->
+    <!-- âœ… Opiniones / ReseÃ±as -->
     <section class="container cv-auto" id="reviewsSection">
       <h3 class="section-title">Opiniones de clientes</h3>
 
@@ -198,63 +197,63 @@
         <div class="avg-box">
           <div class="avg-num" id="avgRatingNum">0.0</div>
           <div>
-            <div class="avg-stars" id="avgRatingStars">☆☆☆☆☆</div>
+            <div class="avg-stars" id="avgRatingStars">â˜†â˜†â˜†â˜†â˜†</div>
             <div class="muted" style="font-size:12px;">
-              <span id="avgRatingCount">0</span> opinión(es)
+              <span id="avgRatingCount">0</span> opiniÃ³n(es)
             </div>
           </div>
         </div>
         <div class="muted" style="font-size:12px;">
-          🔒 1 opinión por teléfono · 🧾 “Verificada” si existe un pedido real
+          ðŸ”’ 1 opiniÃ³n por telÃ©fono Â· ðŸ§¾ â€œVerificadaâ€ si existe un pedido real
         </div>
       </div>
 
       <div id="reviewsGrid" class="reviews-grid"></div>
 
       <div class="box" style="margin-top:14px;">
-        <h4 style="margin:0 0 10px 0;">Deja tu opinión</h4>
+        <h4 style="margin:0 0 10px 0;">Deja tu opiniÃ³n</h4>
         <div class="muted" style="font-size:12px;margin-bottom:10px;">
-          *Por ahora se guarda en este dispositivo (demo). Más adelante se conecta a base de datos.*
+          *Por ahora se guarda en este dispositivo (demo). MÃ¡s adelante se conecta a base de datos.*
         </div>
 
         <input id="reviewName" type="text" placeholder="Tu nombre *">
-        <input id="reviewPhone" type="tel" placeholder="Tu teléfono (para evitar spam) *">
+        <input id="reviewPhone" type="tel" placeholder="Tu telÃ©fono (para evitar spam) *">
 
         <div class="rating-row">
-          <div class="muted" style="font-size:12px;">Calificación *</div>
-          <div id="reviewStars" class="stars" aria-label="Calificación en estrellas"></div>
+          <div class="muted" style="font-size:12px;">CalificaciÃ³n *</div>
+          <div id="reviewStars" class="stars" aria-label="CalificaciÃ³n en estrellas"></div>
           <input id="reviewRating" type="hidden" value="0">
         </div>
 
         <textarea id="reviewText" rows="4" placeholder="Escribe tu comentario *"></textarea>
 
         <div class="inline-row" style="margin-top:10px;">
-          <button id="submitReview" class="btn primary" type="button">Enviar opinión</button>
-          <button id="clearReviewsLocal" class="btn ghost" type="button" title="Borra reseñas guardadas en este dispositivo">
-            🧹 Borrar reseñas (solo aquí)
+          <button id="submitReview" class="btn primary" type="button">Enviar opiniÃ³n</button>
+          <button id="clearReviewsLocal" class="btn ghost" type="button" title="Borra reseÃ±as guardadas en este dispositivo">
+            ðŸ§¹ Borrar reseÃ±as (solo aquÃ­)
           </button>
         </div>
       </div>
     </section>
 
-    <!-- ✅ FAQ -->
+    <!-- âœ… FAQ -->
     <section class="container cv-auto" id="faqSection">
       <h3 class="section-title">Preguntas frecuentes</h3>
       <div class="faq">
         <details>
-          <summary>💳 ¿Qué medios de pago aceptan?</summary>
+          <summary>ðŸ’³ Â¿QuÃ© medios de pago aceptan?</summary>
           <div class="faq-body muted">
             Aceptamos <b>Nequi</b>, <b>Daviplata</b> y <b>efectivo contra entrega</b>.
           </div>
         </details>
         <details>
-          <summary>🚚 ¿Cómo funciona el domicilio?</summary>
+          <summary>ðŸšš Â¿CÃ³mo funciona el domicilio?</summary>
           <div class="faq-body muted">
-            El pedido se envía por WhatsApp y queda <b>PENDIENTE</b> hasta que el vendedor lo acepte y confirme disponibilidad.
+            El pedido se envÃ­a por WhatsApp y queda <b>PENDIENTE</b> hasta que el vendedor lo acepte y confirme disponibilidad.
           </div>
         </details>
         <details>
-          <summary>⏱️ ¿Cuánto tarda la entrega?</summary>
+          <summary>â±ï¸ Â¿CuÃ¡nto tarda la entrega?</summary>
           <div class="faq-body muted">
             Depende de la zona y disponibilidad. Normalmente coordinamos el tiempo de entrega por WhatsApp.
           </div>
@@ -262,14 +261,14 @@
       </div>
     </section>
 
-    <!-- ✅ Ubicación / Horarios / Mapa -->
+    <!-- âœ… UbicaciÃ³n / Horarios / Mapa -->
     <section class="container cv-auto" id="visitSection">
       <h3 class="section-title">Nuestra sede</h3>
       <div class="visit-grid">
         <div class="visit-info">
           <div class="box visit-card">
             <div class="visit-title">Sede principal</div>
-            <div class="visit-row">📍 Calle 2A Este No. 7-04, Facatativá</div>
+            <div class="visit-row">ðŸ“ Calle 2A Este No. 7-04, FacatativÃ¡</div>
             <div class="visit-row">NIT: 35532466-9</div>
             <div class="visit-actions">
               <a class="btn btn--primary" target="_blank"
@@ -286,10 +285,10 @@
             <div class="visit-title">Horarios y cobertura</div>
             <div class="visit-row">Lun a Sab: 9:00am - 9:00pm</div>
             <div class="visit-row">Dom/Fest: 8:00am - 9:00pm</div>
-            <div class="visit-row muted">Domicilios en Facatativá y alrededores cercanos.</div>
+            <div class="visit-row muted">Domicilios en FacatativÃ¡ y alrededores cercanos.</div>
             <div class="visit-badges">
               <span class="pill">Entrega local</span>
-              <span class="pill">Coordinación por WhatsApp</span>
+              <span class="pill">CoordinaciÃ³n por WhatsApp</span>
             </div>
           </div>
 
@@ -315,9 +314,9 @@
 
         <div class="box visit-map">
           <div class="visit-title">Mapa</div>
-          <div class="visit-row muted">Encuéntranos rápidamente</div>
+          <div class="visit-row muted">EncuÃ©ntranos rÃ¡pidamente</div>
           <div class="map-embed">
-            <iframe title="Mapa Droguería Renacer" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+            <iframe title="Mapa WISAND" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
               src="https://www.google.com/maps?q=Calle%202A%20Este%20No.%207-04%20Facatativ%C3%A1&output=embed">
             </iframe>
           </div>
@@ -327,12 +326,12 @@
   </main>
 
   <!-- Toast -->
-  <div id="notif" class="notif" aria-live="polite" role="status">¡Añadido al carrito!</div>
+  <div id="notif" class="notif" aria-live="polite" role="status">Â¡AÃ±adido al carrito!</div>
 
-  <!-- ✅ Modal carrito -->
+  <!-- âœ… Modal carrito -->
   <div id="cartModal" class="cart-modal hidden" aria-hidden="true">
     <div class="cart-panel">
-      <button id="closeCart" class="close-x" aria-label="Cerrar carrito">×</button>
+      <button id="closeCart" class="close-x" aria-label="Cerrar carrito">Ã—</button>
       <h3>Tu carrito</h3>
 
       <div id="cartItems" class="cart-items"></div>
@@ -345,8 +344,8 @@
       <div class="box" style="margin-top:14px; padding:14px;">
         <h4 style="margin:0 0 10px 0; font-size:14px;">Datos para el pedido</h4>
         <input id="clienteNombre" type="text" placeholder="Nombre *">
-        <input id="clienteTelefono" type="text" placeholder="Teléfono (WhatsApp) *">
-        <input id="clienteDireccion" type="text" placeholder="Dirección (opcional)">
+        <input id="clienteTelefono" type="text" placeholder="TelÃ©fono (WhatsApp) *">
+        <input id="clienteDireccion" type="text" placeholder="DirecciÃ³n (opcional)">
 
         <div class="inline-row" style="margin-top:10px;">
           <label class="inline-check">
@@ -354,26 +353,26 @@
             Recordar mis datos en este dispositivo
           </label>
           <button id="clearCustomerBtn" class="btn ghost small" type="button" title="Borrar datos guardados">
-            🧹 Borrar mis datos
+            ðŸ§¹ Borrar mis datos
           </button>
         </div>
 
         <div class="muted" style="font-size:12px;margin-top:8px;">
-          Se guarda <b>solo en este dispositivo</b>. Al enviar, tu pedido quedará <b>PENDIENTE</b> hasta que el vendedor lo acepte.
+          Se guarda <b>solo en este dispositivo</b>. Al enviar, tu pedido quedarÃ¡ <b>PENDIENTE</b> hasta que el vendedor lo acepte.
         </div>
       </div>
 
       <div class="cart-actions">
-        <button id="sendWhatsapp" class="btn whatsapp">📤 Enviar pedido</button>
+        <button id="sendWhatsapp" class="btn whatsapp">ðŸ“¤ Enviar pedido</button>
         <button id="clearCart" class="btn ghost">Vaciar carrito</button>
       </div>
     </div>
   </div>
 
-  <!-- ✅ Modal Mis pedidos -->
+  <!-- âœ… Modal Mis pedidos -->
   <div id="myOrdersModal" class="cart-modal hidden" aria-hidden="true">
     <div class="cart-panel" style="max-width: 720px;">
-      <button id="closeMyOrders" class="close-x" aria-label="Cerrar mis pedidos">×</button>
+      <button id="closeMyOrders" class="close-x" aria-label="Cerrar mis pedidos">Ã—</button>
 
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
         <h3 style="margin:0;">Mis pedidos</h3>
@@ -397,14 +396,14 @@
         <div class="inline-row">
           <label class="inline-check">
             <input id="myOrdersOnlyMine" type="checkbox">
-            Solo mis pedidos (por teléfono)
+            Solo mis pedidos (por telÃ©fono)
           </label>
           <input id="myOrdersPhoneFilter" type="tel" class="form-control"
-            placeholder="Teléfono para filtrar (opcional)"
+            placeholder="TelÃ©fono para filtrar (opcional)"
             style="max-width:260px; margin:0;">
         </div>
         <div class="muted" style="font-size:12px;margin-top:6px;">
-          Tip: si marcaste “Recordar mis datos”, se usa tu teléfono automáticamente.
+          Tip: si marcaste â€œRecordar mis datosâ€, se usa tu telÃ©fono automÃ¡ticamente.
         </div>
       </div>
 
@@ -412,10 +411,10 @@
     </div>
   </div>
 
-  <!-- ✅ Modal detalle producto -->
+  <!-- âœ… Modal detalle producto -->
   <div id="productModal" class="cart-modal hidden" aria-hidden="true">
     <div class="cart-panel product-panel" style="max-width: 760px;">
-      <button id="closeProductModal" class="close-x" aria-label="Cerrar detalle">×</button>
+      <button id="closeProductModal" class="close-x" aria-label="Cerrar detalle">Ã—</button>
       <div class="product-modal">
         <div class="product-modal-media">
           <img id="productModalImg" src="" alt="Producto">
@@ -423,30 +422,30 @@
         <div class="product-modal-content">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <h3 id="productModalName" style="margin:0;">Producto</h3>
-            <span id="productModalCategory" class="product-modal-category">Categoría</span>
+            <span id="productModalCategory" class="product-modal-category">CategorÃ­a</span>
           </div>
           <div id="productModalPrices" class="product-modal-prices"></div>
-          <p id="productModalDesc" class="product-modal-desc">Sin descripción.</p>
+          <p id="productModalDesc" class="product-modal-desc">Sin descripciÃ³n.</p>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ✅ Botón flotante WhatsApp -->
-  <a class="wa-float" href="https://wa.me/573133585508" target="_blank" aria-label="WhatsApp Droguería Renacer">
-    <span class="wa-ico">💬</span>
+  <!-- âœ… BotÃ³n flotante WhatsApp -->
+  <a class="wa-float" href="https://wa.me/573133585508" target="_blank" aria-label="WhatsApp WISAND">
+    <span class="wa-ico">ðŸ’¬</span>
     <span class="wa-text">
-      WhatsApp <span class="wa-sub">Atención al cliente</span>
+      WhatsApp <span class="wa-sub">AtenciÃ³n al cliente</span>
     </span>
   </a>
 
-  <!-- Pie de página -->
+  <!-- Pie de pÃ¡gina -->
   <footer class="site-footer">
     <div class="footer-inner">
       <div class="footer-grid">
         <div class="footer-col">
-          <div class="footer-title">Droguería Renacer</div>
-          <div class="footer-text">Calle 2A Este No. 7-04, Facatativá</div>
+          <div class="footer-title">WISAND</div>
+          <div class="footer-text">Calle 2A Este No. 7-04, FacatativÃ¡</div>
           <div class="footer-text">NIT: 35532466-9</div>
           <a class="footer-link" href="https://wa.me/573133585508" target="_blank">
             WhatsApp: +57 313 3585508
@@ -462,16 +461,16 @@
         <div class="footer-col">
           <div class="footer-title">Servicios</div>
           <div class="footer-text">Domicilio local</div>
-          <div class="footer-text">Asesoría farmacéutica</div>
+          <div class="footer-text">AsesorÃ­a farmacÃ©utica</div>
           <div class="footer-text">Pagos faciles</div>
         </div>
       </div>
 
       <div class="footer-bottom">
-        <div>© 2026 Droguería Renacer</div>
-        <div class="legal-note">La información presentada no sustituye la consulta médica profesional.</div>
+        <div>Â© 2026 WISAND</div>
+        <div class="legal-note">La informaciÃ³n presentada no sustituye la consulta mÃ©dica profesional.</div>
         <div class="footer-brand">
-          <span>Desarrollado por <strong>WISAND — Wilfer Duero</strong></span>
+          <span>Desarrollado por <strong>WISAND â€” Wilfer Duero</strong></span>
           <a class="footer-whatsapp-btn" href="https://wa.me/573133585508" target="_blank" rel="noopener">
             WhatsApp
           </a>
@@ -480,8 +479,11 @@
     </div>
   </footer>
 
-  <!-- ✅ JS con defer y orden correcto -->
+  <!-- âœ… JS con defer y orden correcto -->
   <script defer src="js/core.js?v=20260211b"></script>
   <script defer src="js/store.js?v=20260211b"></script>
 </body>
 </html>
+
+
+

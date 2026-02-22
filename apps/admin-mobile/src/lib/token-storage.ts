@@ -2,7 +2,7 @@ import * as SecureStore from "expo-secure-store";
 
 const TOKEN_KEY = "dr_admin_token_v1";
 const OPTIONS: SecureStore.SecureStoreOptions = {
-  keychainService: "drogueria-renacer-admin",
+  keychainService: "wisand-core-admin",
 };
 
 export const tokenStorage = {

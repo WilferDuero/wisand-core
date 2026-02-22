@@ -536,7 +536,7 @@ export const SalesScreen = () => {
     try {
       const stamp = new Date().toISOString().replace(/[:.]/g, "-");
       const sellerSegment = sellerFilter === "all" ? "todos" : toFileSafeSegment(sellerFilter);
-      await exportCsvFile(`ventas_renacer_${sellerSegment}_${stamp}.csv`, rows);
+      await exportCsvFile(`ventas_wisand_${sellerSegment}_${stamp}.csv`, rows);
     } catch (e) {
       const message = e instanceof Error ? e.message : "No fue posible exportar ventas.";
       Alert.alert("Error", message);
@@ -615,7 +615,7 @@ export const SalesScreen = () => {
 
     try {
       const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-      await exportCsvFile(`ventas_por_vendedor_renacer_${stamp}.csv`, rows);
+      await exportCsvFile(`ventas_por_vendedor_wisand_${stamp}.csv`, rows);
     } catch (e) {
       const message = e instanceof Error ? e.message : "No fue posible exportar ventas por vendedor.";
       Alert.alert("Error", message);

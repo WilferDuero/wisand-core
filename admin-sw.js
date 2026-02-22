@@ -1,4 +1,4 @@
-const CACHE_NAME = "admin-pwa-v19";
+﻿const CACHE_NAME = "admin-pwa-v20";
 const ASSETS = [
   "/admin_login.html",
   "/admin.html",
@@ -8,7 +8,7 @@ const ASSETS = [
   "/js/auth.js?v=20260213a",
   "/js/admin.js?v=20260213a",
   "/js/admin_pwa.js?v=20260213a",
-  "/assets/payments/Logo_Drogueria.svg",
+  "/assets/brand/wisand-logo.svg",
   "/assets/payments/Logo_Coopidrogas.svg"
 ];
 
@@ -72,3 +72,4 @@ self.addEventListener("fetch", (event) => {
     })
   );
 });
+

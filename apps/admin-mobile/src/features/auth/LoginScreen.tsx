@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -49,11 +49,11 @@ export const LoginScreen = () => {
         style={styles.header}
       >
         <Image
-          source={require("../../../assets/logo-drogueria.jpg")}
+          source={require("../../../assets/icon.png")}
           style={styles.logo}
         />
         <View style={styles.headerText}>
-          <Text style={styles.title}>Drogueria Renacer</Text>
+          <Text style={styles.title}>WISAND</Text>
           <Text style={styles.subtitle}>Panel Admin Movil</Text>
         </View>
       </LinearGradient>
@@ -196,3 +196,4 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 });
+

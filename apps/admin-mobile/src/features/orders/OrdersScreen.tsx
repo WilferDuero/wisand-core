@@ -617,6 +617,7 @@ export const OrdersScreen = () => {
 
     try {
       await createSale({
+        orderId: order.numericId,
         refId: String(order.id || ""),
         clienteNombre: order.clienteNombre || "",
         clienteTelefono: order.clienteTelefono || "",
@@ -872,7 +873,7 @@ export const OrdersScreen = () => {
 
     try {
       const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-      await exportCsvFile(`pedidos_renacer_${stamp}.csv`, rows);
+      await exportCsvFile(`pedidos_wisand_${stamp}.csv`, rows);
     } catch (e) {
       const message = e instanceof Error ? e.message : "No fue posible exportar pedidos.";
       Alert.alert("Error", message);
