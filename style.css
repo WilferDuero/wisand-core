@@ -1,4 +1,4 @@
-﻿/* ==========================================================
+/* ==========================================================
    WISAND - style.css
 ========================================================== */
 
@@ -487,7 +487,7 @@ textarea { resize: vertical; }
   font-size: 12px;
 }
 
-/* âœ… Badges PRO (tienda) */
+/* ✅ Badges PRO (tienda) */
 .product-badge {
   position: absolute;
   top: 10px;
@@ -503,7 +503,7 @@ textarea { resize: vertical; }
 .badge-warn { background: linear-gradient(90deg,#f59e0b,#f97316); }
 .badge-neutral { background: linear-gradient(90deg,#6b7280,#94a3b8); }
 
-/* âœ… Login (sin CSS duplicado) */
+/* ✅ Login (sin CSS duplicado) */
 .login-page {
   display: flex;
   align-items: center;
@@ -582,15 +582,15 @@ textarea { resize: vertical; }
 .credentials strong { display: block; color: var(--color-text); margin-bottom: 8px; }
 .credentials code { background: rgba(0, 0, 0, 0.05); padding: 2px 6px; border-radius: 4px; font-family: monospace; }
 
-/* âœ… PRO: bloquear scroll cuando hay modal */
+/* ✅ PRO: bloquear scroll cuando hay modal */
 body.modal-open { overflow: hidden; }
 
-/* âœ… ÃšNICA definiciÃ³n de hidden (FIX FINAL) */
+/* ✅ ÚNICA definición de hidden (FIX FINAL) */
 .hidden { display: none !important; }
 .cart-modal.hidden { display: none !important; }
 
 /* ==========================================================
-   âœ… Extras UI: filas y check inline
+   ✅ Extras UI: filas y check inline
 ========================================================== */
 .inline-row{
   display:flex;
@@ -616,7 +616,7 @@ body.modal-open { overflow: hidden; }
 }
 
 /* ==========================================================
-   âœ… NUEVO: Trust / Reviews / UbicaciÃ³n / Mapa
+   ✅ NUEVO: Trust / Reviews / Ubicación / Mapa
 ========================================================== */
 .trust-grid{
   display:grid;
@@ -731,7 +731,7 @@ body.modal-open { overflow: hidden; }
 }
 
 /* ==========================================================
-   âœ… NUEVO: Form reseÃ±as + estrellas
+   ✅ NUEVO: Form reseñas + estrellas
 ========================================================== */
 .rating-row{
   display:flex;
@@ -797,7 +797,7 @@ body.modal-open { overflow: hidden; }
 }
 
 /* ==========================================================
-   âœ… NUEVO: FAQ
+   ✅ NUEVO: FAQ
 ========================================================== */
 .faq{
   display:grid;
@@ -820,7 +820,7 @@ body.modal-open { overflow: hidden; }
 }
 
 /* ==========================================================
-   âœ… NUEVO: BotÃ³n flotante WhatsApp
+   ✅ NUEVO: Botón flotante WhatsApp
 ========================================================== */
 .wa-float{
   position: fixed;
@@ -881,16 +881,16 @@ body.modal-open { overflow: hidden; }
 }
 
 /* ==========================================================
-   ðŸ”¥ OFERTAS PRO (tienda) â€” pegar al FINAL del style.css
+   🔥 OFERTAS PRO (tienda) — pegar al FINAL del style.css
 ========================================================== */
 
-/* SecciÃ³n ofertas */
+/* Sección ofertas */
 #offersSection{
   margin-top: var(--space-16);
   margin-bottom: var(--space-16);
 }
 
-/* Header ofertas (tÃ­tulo + contador) */
+/* Header ofertas (título + contador) */
 .offers-head{
   display:flex;
   align-items:center;
@@ -931,7 +931,7 @@ body.modal-open { overflow: hidden; }
   border: 1px solid rgba(0,0,0,0.08);
 }
 
-/* Grid de ofertas: mÃ¡s premium */
+/* Grid de ofertas: más premium */
 #offersGrid{
   display:grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -1034,7 +1034,7 @@ body.modal-open { overflow: hidden; }
   color: #065f46;
 }
 
-/* Stock bajo: "Ãšltimos X" */
+/* Stock bajo: "Últimos X" */
 .offer-stock{
   display:inline-flex;
   align-items:center;
@@ -1078,13 +1078,13 @@ body.modal-open { overflow: hidden; }
   font-weight: 950;
 }
 
-/* Ajustes mÃ³viles */
+/* Ajustes móviles */
 @media (max-width: 520px){
   .offers-title{ font-size: 18px; }
   .offer-img{ height: 110px; }
 }
 
-/* PaginaciÃ³n ofertas */
+/* Paginación ofertas */
 .offers-foot{
   display:flex;
   justify-content:center;

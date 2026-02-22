@@ -1,5 +1,5 @@
-﻿/* ==========================================================
-  store.js â€” SOLO tienda (index.html)
+/* ==========================================================
+  store.js — SOLO tienda (index.html)
 ========================================================== */
 
 /* ============================
@@ -47,7 +47,7 @@ let productsLoadMoreBtn = null;
 let productsLoadMoreInfo = null;
 
 /* ============================
-  Fuente Ãºnica de productos (segura)
+  Fuente única de productos (segura)
 ============================ */
 const PRODUCTS_TS_KEY = typeof LS_KEY !== "undefined" ? LS_KEY + "_ts" : "productos_renacer_v1_ts";
 let productsCache = null;
@@ -128,7 +128,7 @@ function ensureLoadMoreControls() {
   productsLoadMoreBtn.id = "productsLoadMoreBtn";
   productsLoadMoreBtn.type = "button";
   productsLoadMoreBtn.className = "btn ghost";
-  productsLoadMoreBtn.textContent = "Cargar mÃ¡s";
+  productsLoadMoreBtn.textContent = "Cargar más";
   productsLoadMoreBtn.addEventListener("click", () => {
     void loadMoreCatalogPageFromApi();
   });
@@ -194,12 +194,12 @@ function updateLoadMoreControls() {
 
   if (hasFilter) {
     productsLoadMoreBtn.disabled = true;
-    productsLoadMoreBtn.textContent = "Quita filtros para cargar mÃ¡s";
+    productsLoadMoreBtn.textContent = "Quita filtros para cargar más";
     return;
   }
 
   productsLoadMoreBtn.disabled = !catalogHasMore;
-  productsLoadMoreBtn.textContent = catalogHasMore ? "Cargar mÃ¡s" : "No hay mÃ¡s";
+  productsLoadMoreBtn.textContent = catalogHasMore ? "Cargar más" : "No hay más";
 }
 
 function renderCatalogView() {
@@ -260,7 +260,7 @@ async function loadMoreCatalogPageFromApi() {
     return await loadCatalogPageFromApi(catalogPage + 1, { append: true });
   } catch (e) {
     console.warn("loadMoreCatalogPageFromApi error:", e);
-    showToast("No se pudo cargar mÃ¡s productos");
+    showToast("No se pudo cargar más productos");
     return false;
   } finally {
     catalogLoadingMore = false;
@@ -285,7 +285,7 @@ async function trySyncOrdersFromApi(phoneDigits) {
 }
 
 /* ==========================================================
-  âœ… Auto-sync pedidos (evita que el admin espere a "Mis pedidos")
+  ✅ Auto-sync pedidos (evita que el admin espere a "Mis pedidos")
 ========================================================== */
 const ORDER_SYNC_DELAYS = [4000, 12000, 25000, 45000];
 let orderSyncTimer = null;
@@ -345,12 +345,12 @@ function configureApiFromPrompt() {
   const base = prompt("URL del backend (API_BASE):", current);
   if (base === null) return;
   const trimmed = String(base).trim();
-  if (!trimmed) return alert("URL invÃ¡lida.");
+  if (!trimmed) return alert("URL inválida.");
 
-  const enabled = confirm("Â¿Activar API ahora? (OK = SÃ­ / Cancel = No)");
+  const enabled = confirm("¿Activar API ahora? (OK = Sí / Cancel = No)");
   localStorage.setItem("API_BASE", trimmed);
   localStorage.setItem("API_ENABLED", enabled ? "true" : "false");
-  showToast(enabled ? "âœ… API activada" : "âš ï¸ API desactivada");
+  showToast(enabled ? "✅ API activada" : "⚠️ API desactivada");
   setTimeout(() => window.location.reload(), 300);
 }
 
@@ -370,11 +370,11 @@ async function handleStoreSync() {
     trySyncReviewsFromApi(),
   ]);
   if (oSynced) updateMyOrdersCount();
-  showToast(pSynced || oSynced || rSynced ? "âœ… Sincronizado" : "Sin cambios o sin API");
+  showToast(pSynced || oSynced || rSynced ? "✅ Sincronizado" : "Sin cambios o sin API");
 }
 
 /* ==========================================================
-  Helpers: badge de bajÃ³ %
+  Helpers: badge de bajó %
 ========================================================== */
 function percentDrop(prev, current) {
   prev = Number(prev) || 0;
@@ -413,7 +413,7 @@ function addToCartCustomPrice(productId, presentacion, precioUnit) {
 
   const precio = Number(precioUnit) || 0;
   if (precio <= 0) {
-    showToast("Esta presentaciÃ³n no estÃ¡ disponible");
+    showToast("Esta presentación no está disponible");
     return;
   }
 
@@ -438,8 +438,8 @@ function addToCartCustomPrice(productId, presentacion, precioUnit) {
 }
 
 /* ==========================================================
-  ðŸ”¥ OFERTAS PRO: render secciÃ³n
-  - soporta lista filtrada (categorÃ­a/bÃºsqueda)
+  🔥 OFERTAS PRO: render sección
+  - soporta lista filtrada (categoría/búsqueda)
 ========================================================== */
 function renderOffers(listForOffers) {
   if (!offersSection || !offersGrid) return;
@@ -447,7 +447,7 @@ function renderOffers(listForOffers) {
   const base = Array.isArray(listForOffers) ? listForOffers : getAllProducts();
   lastOffersBase = base;
 
-  // Solo ofertas vÃ¡lidas (activa + tiene precio oferta en caja o sobre)
+  // Solo ofertas válidas (activa + tiene precio oferta en caja o sobre)
   const list = (base || []).filter(
     (p) =>
       !!p.ofertaActiva &&
@@ -496,7 +496,7 @@ function renderOffers(listForOffers) {
 
     const ribbon = document.createElement("div");
     ribbon.className = "offer-ribbon";
-    ribbon.textContent = "ðŸ”¥ OFERTA";
+    ribbon.textContent = "🔥 OFERTA";
 
     const body = document.createElement("div");
     body.className = "offer-body";
@@ -520,12 +520,12 @@ function renderOffers(listForOffers) {
     if (stockCajas <= 0) {
       const stock = document.createElement("span");
       stock.className = "offer-stock offer-out";
-      stock.textContent = "ðŸš« Sin stock";
+      stock.textContent = "🚫 Sin stock";
       badgesWrap.appendChild(stock);
     } else if (stockCajas <= STOCK_BAJO_LIMIT) {
       const stock = document.createElement("span");
       stock.className = "offer-stock";
-      stock.textContent = `â³ Ãšltimos ${stockCajas}`;
+      stock.textContent = `⏳ Últimos ${stockCajas}`;
       badgesWrap.appendChild(stock);
     }
 
@@ -559,7 +559,7 @@ function renderOffers(listForOffers) {
       prices.appendChild(normal);
       prices.appendChild(now);
 
-      // % descuento (por presentaciÃ³n)
+      // % descuento (por presentación)
       if (info.pct > 0) {
         const disc = document.createElement("span");
         disc.className = "offer-discount";
@@ -567,7 +567,7 @@ function renderOffers(listForOffers) {
         wrap.appendChild(disc);
       }
 
-      // botÃ³n
+      // botón
       const b = document.createElement("button");
       b.type = "button";
       b.className = "btn primary";
@@ -618,7 +618,7 @@ function renderOffers(listForOffers) {
   if (offersPagination) {
     if (list.length > OFFERS_PAGE_SIZE) {
       offersPagination.style.display = "flex";
-      if (offersPageText) offersPageText.textContent = `PÃ¡gina ${offersPage} de ${totalPages}`;
+      if (offersPageText) offersPageText.textContent = `Página ${offersPage} de ${totalPages}`;
       if (offersPrev) offersPrev.disabled = offersPage <= 1;
       if (offersNext) offersNext.disabled = offersPage >= totalPages;
     } else {
@@ -660,11 +660,11 @@ function openProductModal(prod) {
   }
   if (productModalName) productModalName.textContent = prod?.nombre || "Producto";
   if (productModalDesc) {
-    productModalDesc.textContent = prod?.descripcion || "Sin descripciÃ³n.";
+    productModalDesc.textContent = prod?.descripcion || "Sin descripción.";
   }
   if (productModalCategory) {
     const cat = (prod?.categoria || "").trim();
-    productModalCategory.textContent = cat || "Sin categorÃ­a";
+    productModalCategory.textContent = cat || "Sin categoría";
     productModalCategory.style.display = cat ? "inline-flex" : "none";
   }
 
@@ -733,7 +733,7 @@ function renderProducts(list) {
       const badge = document.createElement("div");
       badge.className = "product-badge badge-danger";
       badge.textContent =
-        stockCajas <= 0 ? "Sin stock" : `Stock Bajo (â‰¤ ${STOCK_BAJO_LIMIT} cajas)`;
+        stockCajas <= 0 ? "Sin stock" : `Stock Bajo (≤ ${STOCK_BAJO_LIMIT} cajas)`;
       imgWrap.appendChild(badge);
     }
 
@@ -754,7 +754,7 @@ function renderProducts(list) {
       badge.style.fontSize = "12px";
       badge.style.background = "rgba(0,0,0,0.75)";
       badge.style.color = "white";
-      badge.textContent = `â¬‡ï¸ -${drop}%`;
+      badge.textContent = `⬇️ -${drop}%`;
       imgWrap.appendChild(badge);
     }
 
@@ -836,7 +836,7 @@ function addToCartById(productId, presentacion) {
   else if (presentacion === "unidad") precio = Number(prod.precioUnidad) || 0;
 
   if (precio <= 0) {
-    showToast("Esta presentaciÃ³n no estÃ¡ disponible");
+    showToast("Esta presentación no está disponible");
     return;
   }
 
@@ -873,7 +873,7 @@ function renderCart() {
   let total = 0;
 
   if (!Array.isArray(cart) || cart.length === 0) {
-    cartItems.innerHTML = "<p>Tu carrito estÃ¡ vacÃ­o</p>";
+    cartItems.innerHTML = "<p>Tu carrito está vacío</p>";
     if (cartTotal) cartTotal.textContent = "-";
     return;
   }
@@ -988,8 +988,8 @@ async function createOrderInApiWithFallback(order) {
   if (!order || typeof apiCreateOrder !== "function") return null;
 
   const first = await apiCreateOrder(order);
-  // `existing=true` puede significar que sendBeacon ya insertÃ³ este mismo pedido.
-  // Lo tratamos como Ã©xito idempotente para evitar duplicados por reintento.
+  // `existing=true` puede significar que sendBeacon ya insertó este mismo pedido.
+  // Lo tratamos como éxito idempotente para evitar duplicados por reintento.
   if (first && first.existing) {
     return { ...first, deduped: true };
   }
@@ -1055,19 +1055,19 @@ function trySendOrderBeacon(order) {
 ========================================================== */
 document.getElementById("sendWhatsapp")?.addEventListener("click", () => {
   if (!cart || cart.length === 0) {
-    alert("Tu carrito estÃ¡ vacÃ­o");
+    alert("Tu carrito está vacío");
     return;
   }
 
   const cliente = getCustomerInputs();
   if (!cliente.nombre || !cliente.telefono) {
-    alert("Por favor completa Nombre y TelÃ©fono antes de enviar el pedido.");
+    alert("Por favor completa Nombre y Teléfono antes de enviar el pedido.");
     return;
   }
 
   const telDigits = normPhoneDigits(cliente.telefono);
   if (!telDigits || telDigits.length < 10) {
-    alert("Escribe un telÃ©fono vÃ¡lido (mÃ­nimo 10 dÃ­gitos).");
+    alert("Escribe un teléfono válido (mínimo 10 dígitos).");
     return;
   }
   cliente.telefono = telDigits;
@@ -1089,11 +1089,11 @@ document.getElementById("sendWhatsapp")?.addEventListener("click", () => {
     return;
   }
 
-  // intento rÃ¡pido vÃ­a beacon (mÃ¡s confiable si el navegador cambia de app)
+  // intento rápido vía beacon (más confiable si el navegador cambia de app)
   trySendOrderBeacon(order);
   scheduleOrderSync("send");
 
-  // âœ… intenta enviar al backend (no bloquea)
+  // ✅ intenta enviar al backend (no bloquea)
   if (typeof apiCreateOrder === "function") {
     createOrderInApiWithFallback(order)
       .then(() => markOrderSyncStatus(order.id, true))
@@ -1132,12 +1132,12 @@ document.addEventListener("visibilitychange", () => {
 document.getElementById("cartBtn")?.addEventListener("click", () => openModal("cartModal"));
 document.getElementById("closeCart")?.addEventListener("click", () => closeModal("cartModal"));
 document.getElementById("clearCart")?.addEventListener("click", () => {
-  if (confirm("Â¿Vaciar carrito?")) {
+  if (confirm("¿Vaciar carrito?")) {
     cart = [];
     localStorage.removeItem(CART_KEY);
     renderCart();
     updateCartCount();
-    showToast("Carrito vacÃ­o");
+    showToast("Carrito vacío");
   }
 });
 document.getElementById("cartModal")?.addEventListener("click", (e) => {
@@ -1150,7 +1150,7 @@ btnSyncStore?.addEventListener("click", handleStoreSync);
 btnApiConfigStore?.addEventListener("click", configureApiFromPrompt);
 
 /* ==========================================================
-  CategorÃ­as / filtros
+  Categorías / filtros
 ========================================================== */
 function applyCategoryFilter(value) {
   currentCategoryValue = String(value || "all");
@@ -1168,7 +1168,7 @@ function initCategories(list) {
   categorySelect.innerHTML = "";
   const optAll = document.createElement("option");
   optAll.value = "all";
-  optAll.textContent = "Todas las categorÃ­as";
+  optAll.textContent = "Todas las categorías";
   categorySelect.appendChild(optAll);
 
   cats.forEach((cat) => {
@@ -1203,7 +1203,7 @@ document.querySelectorAll("[data-category]").forEach((btn) => {
   });
 });
 
-/* BÃºsqueda tienda */
+/* Búsqueda tienda */
 document.getElementById("searchInput")?.addEventListener("input", (e) => {
   currentSearchQuery = String(e.target.value || "").trim();
   offersPage = 1;
@@ -1211,7 +1211,7 @@ document.getElementById("searchInput")?.addEventListener("input", (e) => {
 });
 
 /* ==========================================================
-  âœ… MIS PEDIDOS (CLIENTE)
+  ✅ MIS PEDIDOS (CLIENTE)
 ========================================================== */
 function updateMyOrdersCount() {
   const badge = document.getElementById("myOrdersCount");
@@ -1251,7 +1251,7 @@ function buildClientOrderCard(order) {
       ? order.itemsAceptados
       : order.items || [];
 
-  const syncBadge = order.synced === false ? `<span class="pill" style="border-color:#f59e0b;">âš ï¸ Sin sincronizar</span>` : "";
+  const syncBadge = order.synced === false ? `<span class="pill" style="border-color:#f59e0b;">⚠️ Sin sincronizar</span>` : "";
 
   return `
     <div class="box" style="padding:14px;">
@@ -1273,7 +1273,7 @@ function buildClientOrderCard(order) {
       <div style="margin-top:8px;font-size:13px;">
         <div><b>Total:</b> ${formatCOP(total)}</div>
         <div class="muted" style="font-size:12px;margin-top:4px;">
-          Cliente: ${escapeHTML(order.cliente?.nombre || "-")} Â· ${escapeHTML(order.cliente?.telefono || "-")}
+          Cliente: ${escapeHTML(order.cliente?.nombre || "-")} · ${escapeHTML(order.cliente?.telefono || "-")}
         </div>
       </div>
 
@@ -1322,7 +1322,7 @@ function renderMyOrders() {
   if (filter !== "all") orders = orders.filter((o) => String(o.estado) === filter);
 
   if (!phoneToUse) {
-    list.innerHTML = `<div class="box"><p class="muted" style="margin:0;">Escribe tu telÃ©fono para ver tus pedidos.</p></div>`;
+    list.innerHTML = `<div class="box"><p class="muted" style="margin:0;">Escribe tu teléfono para ver tus pedidos.</p></div>`;
     return;
   }
 
@@ -1394,7 +1394,7 @@ function renderMyOrders() {
 })();
 
 /* ==========================================================
-  âœ… REVIEWS PRO
+  ✅ REVIEWS PRO
 ========================================================== */
 function loadReviews() {
   try {
@@ -1410,7 +1410,7 @@ function saveReviews(arr) {
 
 function starsText(rating) {
   const r = Math.max(0, Math.min(5, Number(rating) || 0));
-  return "â˜…â˜…â˜…â˜…â˜…â˜†â˜†â˜†â˜†â˜†".slice(5 - r, 10 - r);
+  return "★★★★★☆☆☆☆☆".slice(5 - r, 10 - r);
 }
 
 function hasRealOrderByPhone(phoneDigits) {
@@ -1448,7 +1448,7 @@ function renderReviews() {
   grid.innerHTML = "";
 
   if (!reviews.length) {
-    grid.innerHTML = `<div class="box"><div class="muted">AÃºn no hay opiniones. Â¡SÃ© el primero en dejar una!</div></div>`;
+    grid.innerHTML = `<div class="box"><div class="muted">Aún no hay opiniones. ¡Sé el primero en dejar una!</div></div>`;
     renderAvgRatingUI();
     return;
   }
@@ -1465,14 +1465,14 @@ function renderReviews() {
             <div class="review-name">${escapeHTML(r.nombre || "Cliente")}</div>
             <div class="review-stars">${st}</div>
           </div>
-          <div class="muted">â€œ${escapeHTML(r.texto || "")}â€</div>
+          <div class="muted">“${escapeHTML(r.texto || "")}”</div>
           <div class="review-badges" style="margin-top:8px;">
             ${
               verified
-                ? `<span class="pill pill-verified">ðŸ§¾ OpiniÃ³n verificada</span>`
-                : `<span class="pill pill-local">ðŸ’¾ Guardada aquÃ­ (demo)</span>`
+                ? `<span class="pill pill-verified">🧾 Opinión verificada</span>`
+                : `<span class="pill pill-local">💾 Guardada aquí (demo)</span>`
             }
-            ${date ? `<span class="pill">ðŸ“… ${date}</span>` : ``}
+            ${date ? `<span class="pill">📅 ${date}</span>` : ``}
           </div>
         </div>
       `;
@@ -1500,7 +1500,7 @@ function initStarsPicker() {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "star-btn";
-    b.textContent = "â˜…";
+    b.textContent = "★";
     b.addEventListener("click", () => setRating(i));
     wrap.appendChild(b);
   }
@@ -1535,15 +1535,15 @@ document.getElementById("submitReview")?.addEventListener("click", () => {
   const texto = (textEl.value || "").trim();
 
   if (!nombre) return alert("Por favor escribe tu nombre.");
-  if (!telefonoDigits) return alert("Por favor escribe tu telÃ©fono (para evitar spam).");
-  if (rating < 1 || rating > 5) return alert("Selecciona una calificaciÃ³n (1 a 5 estrellas).");
+  if (!telefonoDigits) return alert("Por favor escribe tu teléfono (para evitar spam).");
+  if (rating < 1 || rating > 5) return alert("Selecciona una calificación (1 a 5 estrellas).");
   if (!texto || texto.length < 6)
-    return alert("Escribe un comentario un poquito mÃ¡s largo (mÃ­nimo 6 caracteres).");
+    return alert("Escribe un comentario un poquito más largo (mínimo 6 caracteres).");
 
   const reviews = loadReviews();
   const already = reviews.some((r) => String(r.telefonoDigits) === telefonoDigits);
   if (already) {
-    alert("Ya existe 1 opiniÃ³n registrada con este telÃ©fono en este dispositivo. Gracias ðŸ™Œ");
+    alert("Ya existe 1 opinión registrada con este teléfono en este dispositivo. Gracias 🙌");
     return;
   }
 
@@ -1562,7 +1562,7 @@ document.getElementById("submitReview")?.addEventListener("click", () => {
   reviews.unshift(review);
   saveReviews(reviews);
 
-  // âœ… enviar al backend si existe (no bloquea)
+  // ✅ enviar al backend si existe (no bloquea)
   if (typeof apiCreateReview === "function") {
     apiCreateReview(review).catch((e) => console.warn("apiCreateReview error:", e));
   }
@@ -1570,19 +1570,19 @@ document.getElementById("submitReview")?.addEventListener("click", () => {
   textEl.value = "";
   document.getElementById("reviewRating").value = "0";
   initStarsPicker();
-  showToast(verified ? "âœ… OpiniÃ³n enviada (verificada)" : "âœ… OpiniÃ³n enviada");
+  showToast(verified ? "✅ Opinión enviada (verificada)" : "✅ Opinión enviada");
   renderReviews();
 });
 
 document.getElementById("clearReviewsLocal")?.addEventListener("click", () => {
-  if (!confirm("Â¿Borrar reseÃ±as guardadas en este dispositivo?")) return;
+  if (!confirm("¿Borrar reseñas guardadas en este dispositivo?")) return;
   localStorage.removeItem(REVIEWS_KEY);
-  showToast("ðŸ§¹ ReseÃ±as borradas");
+  showToast("🧹 Reseñas borradas");
   renderReviews();
 });
 
 /* ==========================================================
-  InicializaciÃ³n tienda
+  Inicialización tienda
 ========================================================== */
 (async function initStore() {
   if (!productsGrid) return;

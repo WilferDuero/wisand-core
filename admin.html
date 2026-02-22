@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
@@ -26,22 +26,22 @@
       <div id="apiStatusAdmin" class="api-status" title="Estado API">
         <span class="api-dot"></span>
         <span class="api-text">API: --</span>
-        <span id="apiLastSyncAdmin" class="api-last-sync">Ãšltima sync: --</span>
+        <span id="apiLastSyncAdmin" class="api-last-sync">Última sync: --</span>
       </div>
       <div id="adminUserInfo" class="api-status" title="Usuario actual">
         <span class="api-text">Usuario: --</span>
       </div>
       <button id="btnSyncAdmin" class="icon-btn small" style="border: 1px solid rgba(255,255,255,0.2);" type="button">
-        â†» Sincronizar
+        ↻ Sincronizar
       </button>
       <button id="btnPushProductsAdmin" class="icon-btn small" style="border: 1px solid rgba(255,255,255,0.2);" type="button">
-        â¬† Publicar productos
+        ⬆ Publicar productos
       </button>
       <button id="btnApiConfigAdmin" class="icon-btn small" style="border: 1px solid rgba(255,255,255,0.2);" type="button">
-        âš™ API
+        ⚙ API
       </button>
       <button id="logoutBtn" class="btn danger" style="padding: 8px 16px; font-size: 14px;" type="button">
-        Cerrar SesiÃ³n
+        Cerrar Sesión
       </button>
     </div>
   </header>
@@ -51,12 +51,12 @@
       <!-- Resumen general -->
       <section class="admin-dashboard">
         <div class="admin-dashboard-header">
-          <h2>EstadÃ­sticas en Tiempo Real</h2>
+          <h2>Estadísticas en Tiempo Real</h2>
         </div>
 
         <div class="stats-grid">
           <article class="stat-card stat-card-1">
-            <div class="stat-icon">ðŸ“¦</div>
+            <div class="stat-icon">📦</div>
             <div class="stat-content">
               <h3>Total de Productos</h3>
               <p id="statTotalProds" class="stat-value">0</p>
@@ -64,15 +64,15 @@
           </article>
 
           <article class="stat-card stat-card-2">
-            <div class="stat-icon">ðŸ“‚</div>
+            <div class="stat-icon">📂</div>
             <div class="stat-content">
-              <h3>CategorÃ­as</h3>
+              <h3>Categorías</h3>
               <p id="statCategs" class="stat-value">0</p>
             </div>
           </article>
 
           <article class="stat-card stat-card-3a">
-            <div class="stat-icon">ðŸ“…</div>
+            <div class="stat-icon">📅</div>
             <div class="stat-content">
               <h3>Ingresos Hoy</h3>
               <p id="statIngresosDiarios" class="stat-value">$0</p>
@@ -80,7 +80,7 @@
           </article>
 
           <article class="stat-card stat-card-3b">
-            <div class="stat-icon">ðŸ“Š</div>
+            <div class="stat-icon">📊</div>
             <div class="stat-content">
               <h3>Ingresos Este Mes</h3>
               <p id="statIngresosMensuales" class="stat-value">$0</p>
@@ -88,9 +88,9 @@
           </article>
 
           <article class="stat-card stat-card-3c">
-            <div class="stat-icon">ðŸ“ˆ</div>
+            <div class="stat-icon">📈</div>
             <div class="stat-content">
-              <h3>Ingresos Este AÃ±o</h3>
+              <h3>Ingresos Este Año</h3>
               <p id="statIngresosAnuales" class="stat-value">$0</p>
             </div>
           </article>
@@ -98,7 +98,7 @@
           
 
           <article class="stat-card stat-card-5">
-            <div class="stat-icon">ðŸ“ˆ</div>
+            <div class="stat-icon">📈</div>
             <div class="stat-content">
               <h3>Ventas Totales</h3>
               <p id="statVentasTotales" class="stat-value">0</p>
@@ -106,7 +106,7 @@
           </article>
 
           <article class="stat-card stat-card-6">
-            <div class="stat-icon">ðŸ’°</div>
+            <div class="stat-icon">💰</div>
             <div class="stat-content">
               <h3>Ingresos Ventas</h3>
               <p id="statIngresosVentas" class="stat-value">$0</p>
@@ -114,7 +114,7 @@
           </article>
 
           <article id="statAlertasCard" class="stat-card stat-card-7" style="cursor:pointer;">
-            <div class="stat-icon">ðŸš¨</div>
+            <div class="stat-icon">🚨</div>
             <div class="stat-content">
               <h3>Alertas Stock</h3>
               <p id="statAlertas" class="stat-value">0</p>
@@ -145,12 +145,12 @@
             </div>
 
             <div style="grid-column: 1 / -1;">
-              <label style="display: block; margin-bottom: 8px; font-weight: 500; font-size: 13px;">DescripciÃ³n</label>
-              <input type="text" id="descripcionProducto" placeholder="Ej: AnalgÃ©sico">
+              <label style="display: block; margin-bottom: 8px; font-weight: 500; font-size: 13px;">Descripción</label>
+              <input type="text" id="descripcionProducto" placeholder="Ej: Analgésico">
             </div>
 
             <div>
-              <label style="display: block; margin-bottom: 8px; font-weight: 500; font-size: 13px;">CategorÃ­a</label>
+              <label style="display: block; margin-bottom: 8px; font-weight: 500; font-size: 13px;">Categoría</label>
               <select id="categoriaProducto">
                 <option value="Medicamentos">Medicamentos</option>
                 <option value="Suplementos">Suplementos</option>
@@ -165,7 +165,7 @@
               <select id="disponibilidadProducto">
                 <option value="Disponible">Disponible</option>
                 <option value="Agotado">Agotado</option>
-                <option value="PrÃ³ximamente">PrÃ³ximamente</option>
+                <option value="Próximamente">Próximamente</option>
               </select>
             </div>
 
@@ -175,7 +175,7 @@
             </div>
 
             <div style="grid-column: 1 / -1;">
-              <h3 style="margin: 16px 0 12px 0; font-size: 14px; color: #208d9f;">ðŸ“¦ PRESENTACIONES Y PRECIOS</h3>
+              <h3 style="margin: 16px 0 12px 0; font-size: 14px; color: #208d9f;">📦 PRESENTACIONES Y PRECIOS</h3>
             </div>
 
             <div>
@@ -209,7 +209,7 @@
             </div>
 
             <div style="grid-column: 1 / -1;">
-  <h3 style="margin: 16px 0 12px 0; font-size: 14px; color: #208d9f;">ðŸ”¥ OFERTA (PROMO)</h3>
+  <h3 style="margin: 16px 0 12px 0; font-size: 14px; color: #208d9f;">🔥 OFERTA (PROMO)</h3>
 </div>
 
 <div style="grid-column: 1 / -1; display:flex; gap:10px; align-items:center;">
@@ -239,7 +239,7 @@
 
             <div style="grid-column: 1 / -1; display: flex; gap: 8px; margin-top: 12px;">
               <button type="button" id="btnAgregar" class="btn primary" style="flex: 1;">Guardar Producto</button>
-              <button type="button" id="btnCancelarEdicion" class="btn secondary" style="flex: 1; display: none;">Cancelar EdiciÃ³n</button>
+              <button type="button" id="btnCancelarEdicion" class="btn secondary" style="flex: 1; display: none;">Cancelar Edición</button>
             </div>
           </form>
         </div>
@@ -253,7 +253,7 @@
             <input type="text" id="searchListaProductos" placeholder="Buscar producto..." style="max-width: 200px; padding: 10px; border-radius: 6px; border: 1px solid var(--color-border);">
             <button id="btnDescargarExcel" class="btn" style="background: #10b981; color: white; padding: 10px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;" type="button">Descargar Excel</button>
             <button id="btnLimpiarLocal" class="btn danger" style="padding: 10px 16px; border-radius: 6px;" type="button">Eliminar Todos</button>
-            <div id="backupInfoProducts" class="muted" style="font-size:12px;">Ãšltimo respaldo: --</div>
+            <div id="backupInfoProducts" class="muted" style="font-size:12px;">Último respaldo: --</div>
           </div>
         </div>
         <!-- Banner: filtro activo (stock bajo) -->
@@ -274,9 +274,9 @@
           <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items:center;">
             <button id="btnExportVentas" class="btn" style="background: #10b981; color: white; padding: 10px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;" type="button">Exportar CSV</button>
             <button id="btnLimpiarVentas" class="btn danger" style="padding: 10px 16px; border-radius: 6px;" type="button">Limpiar Historial</button>
-            <button id="btnClearVentas" class="btn danger" style="padding: 10px 16px; border-radius: 6px;" type="button">ðŸ§¹ Limpiar ventas (pruebas)</button>
-            <button id="btnClearReviews" class="btn danger" style="padding: 10px 16px; border-radius: 6px;" type="button">Reset reseÃ±as (pruebas)</button>
-            <div id="backupInfoSales" class="muted" style="font-size:12px;">Ãšltimo respaldo: --</div>
+            <button id="btnClearVentas" class="btn danger" style="padding: 10px 16px; border-radius: 6px;" type="button">🧹 Limpiar ventas (pruebas)</button>
+            <button id="btnClearReviews" class="btn danger" style="padding: 10px 16px; border-radius: 6px;" type="button">Reset reseñas (pruebas)</button>
+            <div id="backupInfoSales" class="muted" style="font-size:12px;">Último respaldo: --</div>
           </div>
         </div>
         <div id="listaVentas" style="display: grid; gap: 12px;"></div>
@@ -301,9 +301,9 @@
               Actualizar
             </button>
             <button id="btnClearOrders" class="btn danger" style="padding:10px 16px;border-radius:6px;" type="button">
-              ðŸ§¹ Limpiar pedidos (pruebas)
+              🧹 Limpiar pedidos (pruebas)
             </button>
-            <div id="backupInfoOrders" class="muted" style="font-size:12px;">Ãšltimo respaldo: --</div>
+            <div id="backupInfoOrders" class="muted" style="font-size:12px;">Último respaldo: --</div>
           </div>
         </div>
         <div id="ordersList" style="display:grid;gap:12px;"></div>
@@ -314,15 +314,15 @@
         <div class="box">
           <h2 style="margin-top:0;">Usuarios</h2>
           <div class="muted" style="font-size:12px;margin-bottom:10px;">
-            Solo el dueÃ±o puede crear o modificar usuarios.
+            Solo el dueño puede crear o modificar usuarios.
           </div>
 
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;">
             <input id="userUsername" type="text" placeholder="Usuario (ej: empleado1)">
-            <input id="userPassword" type="password" placeholder="ContraseÃ±a temporal">
+            <input id="userPassword" type="password" placeholder="Contraseña temporal">
             <select id="userRole">
               <option value="staff">Empleado</option>
-              <option value="owner">DueÃ±o</option>
+              <option value="owner">Dueño</option>
             </select>
             <button id="btnCreateUser" class="btn primary" type="button">Crear usuario</button>
           </div>
@@ -333,10 +333,10 @@
     </div>
   </main>
 
-  <!-- âœ… Modal Config API (admin) -->
+  <!-- ✅ Modal Config API (admin) -->
   <div id="apiConfigModal" class="cart-modal hidden" aria-hidden="true">
     <div class="cart-panel" style="max-width:520px;">
-      <button id="closeApiConfig" class="close-x" aria-label="Cerrar">Ã—</button>
+      <button id="closeApiConfig" class="close-x" aria-label="Cerrar">×</button>
       <h3 style="margin-top:0;">Configurar API</h3>
       <div class="muted" style="font-size:12px;margin-bottom:10px;">
         Usa la URL del backend remoto o local.

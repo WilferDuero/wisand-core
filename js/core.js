@@ -1,5 +1,5 @@
-﻿/* ==========================================================
-  WISAND — core.js
+/* ==========================================================
+  WISAND - core.js
   Compartido: storage, utilidades, stock, pedidos, modales, stats
 ========================================================== */
 
@@ -54,7 +54,7 @@ const STOCK_BAJO_LIMIT = 2;
 ========================================================== */
 const SALE_CHANNELS = {
   WEB: {
-    allow: ["caja", "sobre"], // âŒ unidades NO online
+    allow: ["caja", "sobre"], // ❌ unidades NO online
   },
   FISICA: {
     allow: ["caja", "sobre", "unidad"],
@@ -64,11 +64,11 @@ const SALE_CHANNELS = {
 const SALES_KEY = "ventas_renacer";
 const ORDERS_KEY = "pedidos_renacer_v1";
 
-/* âœ… Cliente (recordar / borrar) */
+/* ✅ Cliente (recordar / borrar) */
 const CUSTOMER_KEY = "cliente_renacer_v1";
 const CUSTOMER_PREF_KEY = "cliente_remember_enabled_v1";
 
-/* âœ… Reviews */
+/* ✅ Reviews */
 const REVIEWS_KEY = "reviews_renacer_v1";
 
 /* Formateador COP */
@@ -105,7 +105,7 @@ function formatCOP(n) {
 }
 
 /* Toast */
-function showToast(text = "Â¡Hecho!") {
+function showToast(text = "¡Hecho!") {
   const n = document.getElementById("notif");
   if (!n) return;
   n.textContent = text;
@@ -121,8 +121,8 @@ function nowISO() {
 }
 
 /* ==========================================================
-  âœ… Lock de pedidos (anti doble click / doble procesamiento)
-  - VersiÃ³n estable con localStorage + TTL
+  ✅ Lock de pedidos (anti doble click / doble procesamiento)
+  - Versión estable con localStorage + TTL
 ========================================================== */
 const ORDER_LOCK_PREFIX = "order_lock_v1_";
 const ORDER_LOCK_TTL_MS = 12000; // 12s
@@ -143,7 +143,7 @@ function acquireOrderLock(orderId) {
     return true;
   } catch (e) {
     console.warn("acquireOrderLock error:", e);
-    return true; // degradaciÃ³n suave
+    return true; // degradación suave
   }
 }
 
@@ -160,7 +160,7 @@ function releaseOrderLock(orderId) {
 function openWindowSafe(url = "", target = "_blank") {
   const w = window.open(url, target);
   if (!w) {
-    alert("Tu navegador bloqueÃ³ la ventana emergente. Permite popups para imprimir/abrir el recibo.");
+    alert("Tu navegador bloqueó la ventana emergente. Permite popups para imprimir/abrir el recibo.");
     return null;
   }
   return w;
@@ -362,12 +362,12 @@ async function syncOrdersFromApi(options = {}) {
         };
       });
 
-      // conserva pedidos locales que aÃºn no existen en la API
+      // conserva pedidos locales que aún no existen en la API
       local.forEach((o) => {
         if (!apiIds.has(o.id)) merged.push(o);
       });
 
-      // ordena por fecha (mÃ¡s nuevo primero)
+      // ordena por fecha (más nuevo primero)
       merged.sort((a, b) => String(b.fechaISO || "").localeCompare(String(a.fechaISO || "")));
 
       saveOrders(merged);
@@ -509,7 +509,7 @@ function saveSavedProductsArray(arr) {
   localStorage.setItem(LS_KEY + "_backup_ts", new Date().toISOString());
 }
 
-/* Fuente Ãºnica de productos (con fallback si storage estÃ¡ vacÃ­o) */
+/* Fuente única de productos (con fallback si storage está vacío) */
 function getProductsLocal() {
   const saved = loadSavedProductsArray();
   if (Array.isArray(saved) && saved.length) return saved;
@@ -550,7 +550,7 @@ function saveOrders(orders) {
     return true;
   } catch (err) {
     console.error("saveOrders() error:", err);
-    alert("âš ï¸ No se pudo guardar en localStorage. Revisa espacio disponible o consola.");
+    alert("⚠️ No se pudo guardar en localStorage. Revisa espacio disponible o consola.");
     return false;
   }
 }
@@ -569,7 +569,7 @@ function generateOrderId() {
 }
 
 /* ==========================================================
-  CÃ¡lculos de stock (visual)
+  Cálculos de stock (visual)
 ========================================================== */
 function calcularStockTotalUnidades(producto) {
   const cajas = producto.stockCajas || 0;
@@ -605,21 +605,21 @@ function cajasNecesariasParaVenta(producto, tipo, cantidad) {
 
 function validarStockParaItem(producto, tipo, cantidad) {
   if (!producto || !producto.id) {
-    return { ok: false, cajasNecesarias: 0, msg: "Producto invÃ¡lido." };
+    return { ok: false, cajasNecesarias: 0, msg: "Producto inválido." };
   }
 
   if (!["caja", "sobre", "unidad"].includes(tipo)) {
-    return { ok: false, cajasNecesarias: 0, msg: "Tipo de venta invÃ¡lido." };
+    return { ok: false, cajasNecesarias: 0, msg: "Tipo de venta inválido." };
   }
 
   if (!Number.isFinite(Number(cantidad)) || Number(cantidad) <= 0) {
-    return { ok: false, cajasNecesarias: 0, msg: "Cantidad invÃ¡lida." };
+    return { ok: false, cajasNecesarias: 0, msg: "Cantidad inválida." };
   }
 
   const cajasNecesarias = cajasNecesariasParaVenta(producto, tipo, cantidad);
 
   if (!Number.isFinite(cajasNecesarias)) {
-    return { ok: false, cajasNecesarias: 0, msg: "PresentaciÃ³n invÃ¡lida para este producto." };
+    return { ok: false, cajasNecesarias: 0, msg: "Presentación inválida para este producto." };
   }
 
   if ((producto.stockCajas || 0) < cajasNecesarias) {
@@ -652,7 +652,7 @@ function revertirStock(producto, tipo, cantidad) {
 }
 
 /* ==========================================================
-  EstadÃ­sticas del panel admin
+  Estadísticas del panel admin
 ========================================================== */
 function ensureSalesLoaded() {
   try {
@@ -734,7 +734,7 @@ function updateStats() {
 }
 
 /* ==========================================================
-  Carga inicial de productos (normaliza + aÃ±ade campos nuevos)
+  Carga inicial de productos (normaliza + añade campos nuevos)
 ========================================================== */
 (function loadSavedProducts() {
   let raw = [];
@@ -779,12 +779,12 @@ function updateStats() {
     unidadesXSobre: parseInt(p.unidadesXSobre) || 0,
     stockCajas: parseInt(p.stockCajas) || 0,
 
-    // âœ… historial (solo para mostrar â€œbajÃ³ X%â€)
+    // ✅ historial (solo para mostrar “bajó X%”)
     prevPrecioCaja: parsePriceInput(p.prevPrecioCaja || 0),
     prevPrecioSobre: parsePriceInput(p.prevPrecioSobre || 0),
     priceChangedISO: p.priceChangedISO || "",
 
-    // âœ… oferta manual (promo real)
+    // ✅ oferta manual (promo real)
     ofertaActiva: !!p.ofertaActiva,
     ofertaTexto: (p.ofertaTexto || "").trim(),
     ofertaPrecioCaja: parsePriceInput(p.ofertaPrecioCaja || 0),
@@ -796,7 +796,7 @@ function updateStats() {
 })();
 
 /* ==========================================================
-  API pÃºblica mÃ­nima del core (para tienda/admin)
+  API pública mínima del core (para tienda/admin)
 ========================================================== */
 window.getProducts = function () {
   return getProductsLocal();
@@ -813,23 +813,23 @@ window.setProducts = function (arr) {
 ========================================================== */
 function buildOrderWhatsAppMessage(order) {
   const lines = [];
-  lines.push(`ðŸ§¾ *PEDIDO ${order.id}*`);
-  lines.push(`ðŸ“Œ Estado: *PENDIENTE*`);
-  lines.push(`ðŸ•’ Fecha: ${new Date(order.fechaISO).toLocaleString("es-CO")}`);
+  lines.push(`🧾 *PEDIDO ${order.id}*`);
+  lines.push(`📌 Estado: *PENDIENTE*`);
+  lines.push(`🕒 Fecha: ${new Date(order.fechaISO).toLocaleString("es-CO")}`);
   lines.push("");
-  lines.push(`ðŸ‘¤ Cliente: ${order.cliente.nombre}`);
-  lines.push(`ðŸ“ž Tel: ${order.cliente.telefono}`);
-  if (order.cliente.direccion) lines.push(`ðŸ“ DirecciÃ³n: ${order.cliente.direccion}`);
+  lines.push(`👤 Cliente: ${order.cliente.nombre}`);
+  lines.push(`📞 Tel: ${order.cliente.telefono}`);
+  if (order.cliente.direccion) lines.push(`📍 Dirección: ${order.cliente.direccion}`);
   lines.push("");
-  lines.push("ðŸ›’ *Productos*");
+  lines.push("🛒 *Productos*");
   order.items.forEach((it, i) => {
     const label = it.presentacion.charAt(0).toUpperCase() + it.presentacion.slice(1);
     lines.push(`${i + 1}. ${it.nombre} (${label}) x${it.cantidad} = ${formatCOP(it.subtotal)}`);
   });
   lines.push("");
-  lines.push(`ðŸ’° *Total:* ${formatCOP(order.total)}`);
+  lines.push(`💰 *Total:* ${formatCOP(order.total)}`);
   lines.push("");
-  lines.push("âœ… Admin: ACEPTAR (total o parcial) o RECHAZAR desde el Panel â†’ Pedidos.");
+  lines.push("✅ Admin: ACEPTAR (total o parcial) o RECHAZAR desde el Panel → Pedidos.");
   return lines.join("\n");
 }
 
@@ -841,7 +841,7 @@ function createPendingOrderFromCart(cliente) {
   const direccion = (cliente?.direccion || "").trim();
 
   if (!nombre || !telefono) {
-    alert("Por favor completa Nombre y TelÃ©fono antes de enviar el pedido.");
+    alert("Por favor completa Nombre y Teléfono antes de enviar el pedido.");
     return null;
   }
 
@@ -889,10 +889,10 @@ function sendOrderToWhatsApp(order) {
 }
 
 /* ==========================================================
-  âœ… WhatsApp al CLIENTE (estado del pedido)
+  ✅ WhatsApp al CLIENTE (estado del pedido)
 ========================================================== */
 
-/* Normaliza telÃ©fono: si viene en 10 dÃ­gitos => asume Colombia y agrega 57 */
+/* Normaliza teléfono: si viene en 10 dígitos => asume Colombia y agrega 57 */
 function normalizeWhatsPhone(phoneDigits) {
   let d = String(phoneDigits || "").replace(/\D/g, "");
   if (!d) return "";
@@ -909,15 +909,15 @@ function buildClientOrderUpdateWhatsAppMessage(order) {
   const estado = String(order.estado || "").toLowerCase();
   const lines = [];
 
-  lines.push(`ðŸ§¾ *ActualizaciÃ³n de tu pedido ${order.id}*`);
-  lines.push(`ðŸ“Œ Estado: *${estado.toUpperCase()}${order.esParcial ? " (PARCIAL)" : ""}*`);
-  lines.push(`ðŸ•’ ${new Date().toLocaleString("es-CO")}`);
+  lines.push(`🧾 *Actualización de tu pedido ${order.id}*`);
+  lines.push(`📌 Estado: *${estado.toUpperCase()}${order.esParcial ? " (PARCIAL)" : ""}*`);
+  lines.push(`🕒 ${new Date().toLocaleString("es-CO")}`);
   lines.push("");
 
   const c = order.cliente || {};
-  if (c.nombre) lines.push(`ðŸ‘¤ Cliente: ${c.nombre}`);
-  if (c.telefono) lines.push(`ðŸ“ž Tel: ${c.telefono}`);
-  if (c.direccion) lines.push(`ðŸ“ Dir: ${c.direccion}`);
+  if (c.nombre) lines.push(`👤 Cliente: ${c.nombre}`);
+  if (c.telefono) lines.push(`📞 Tel: ${c.telefono}`);
+  if (c.direccion) lines.push(`📍 Dir: ${c.direccion}`);
   lines.push("");
 
   if (estado === "aceptado") {
@@ -927,11 +927,11 @@ function buildClientOrderUpdateWhatsAppMessage(order) {
     const total = Number(order.totalAceptado || 0) > 0 ? Number(order.totalAceptado || 0) : Number(order.total || 0);
 
     if (order.esParcial && (aceptados.length || rechazados.length)) {
-      lines.push("âœ… *Pedido aceptado PARCIALMENTE*");
+      lines.push("✅ *Pedido aceptado PARCIALMENTE*");
       lines.push("");
 
       if (aceptados.length) {
-        lines.push("ðŸŸ¢ *Disponibles ahora*");
+        lines.push("🟢 *Disponibles ahora*");
         aceptados.forEach((it, i) => {
           const label = (it.presentacion || "").charAt(0).toUpperCase() + (it.presentacion || "").slice(1);
           lines.push(`${i + 1}. ${it.nombre} (${label}) x${it.cantidad} = ${formatCOP(it.subtotal)}`);
@@ -940,7 +940,7 @@ function buildClientOrderUpdateWhatsAppMessage(order) {
       }
 
       if (rechazados.length) {
-        lines.push("ðŸ”´ *No disponibles por ahora*");
+        lines.push("🔴 *No disponibles por ahora*");
         rechazados.forEach((it, i) => {
           const label = (it.presentacion || "").charAt(0).toUpperCase() + (it.presentacion || "").slice(1);
           lines.push(`${i + 1}. ${it.nombre} (${label}) x${it.cantidad}`);
@@ -948,44 +948,44 @@ function buildClientOrderUpdateWhatsAppMessage(order) {
         lines.push("");
       }
 
-      lines.push(`ðŸ’° *Total actualizado:* ${formatCOP(total)}`);
+      lines.push(`💰 *Total actualizado:* ${formatCOP(total)}`);
       lines.push("");
       lines.push("Por favor confirma por WhatsApp:");
-      lines.push("âœ… Responde: *SI* para aceptar el pedido parcial");
-      lines.push("âŒ Responde: *NO* para cancelar el pedido");
+      lines.push("✅ Responde: *SI* para aceptar el pedido parcial");
+      lines.push("❌ Responde: *NO* para cancelar el pedido");
       return lines.join("\n");
     }
 
     // Aceptado completo
     const items =
       Array.isArray(order.itemsAceptados) && order.itemsAceptados.length ? order.itemsAceptados : order.items || [];
-    lines.push("âœ… *Pedido aceptado*");
+    lines.push("✅ *Pedido aceptado*");
     lines.push("Productos:");
     items.forEach((it, i) => {
       const label = (it.presentacion || "").charAt(0).toUpperCase() + (it.presentacion || "").slice(1);
       lines.push(`${i + 1}. ${it.nombre} (${label}) x${it.cantidad} = ${formatCOP(it.subtotal)}`);
     });
     lines.push("");
-    lines.push(`ðŸ’° *Total:* ${formatCOP(total)}`);
-    lines.push("Gracias por tu compra ðŸ’™");
+    lines.push(`💰 *Total:* ${formatCOP(total)}`);
+    lines.push("Gracias por tu compra 💙");
     return lines.join("\n");
   }
 
   if (estado === "rechazado") {
-    lines.push("âŒ *Tu pedido fue rechazado*");
-    if (order.motivoRechazo) lines.push(`ðŸ“ Motivo: ${order.motivoRechazo}`);
+    lines.push("❌ *Tu pedido fue rechazado*");
+    if (order.motivoRechazo) lines.push(`📝 Motivo: ${order.motivoRechazo}`);
     lines.push("");
     lines.push("Si deseas, puedes hacer un nuevo pedido o escribirnos para ayudarte.");
     return lines.join("\n");
   }
 
   if (estado === "cancelado") {
-    lines.push("ðŸš« *Tu pedido fue cancelado*");
-    lines.push("Si fue un error o deseas reactivar, escrÃ­benos.");
+    lines.push("🚫 *Tu pedido fue cancelado*");
+    lines.push("Si fue un error o deseas reactivar, escríbenos.");
     return lines.join("\n");
   }
 
-  lines.push("â³ Tu pedido estÃ¡ en revisiÃ³n.");
+  lines.push("⏳ Tu pedido está en revisión.");
   lines.push("Te avisaremos por este medio cuando sea aceptado o rechazado.");
   return lines.join("\n");
 }
@@ -993,7 +993,7 @@ function buildClientOrderUpdateWhatsAppMessage(order) {
 function sendOrderUpdateToClientWhatsApp(order) {
   const tel = normalizeWhatsPhone(order?.cliente?.telefono || "");
   if (!tel) {
-    alert("Este pedido no tiene telÃ©fono del cliente para WhatsApp.");
+    alert("Este pedido no tiene teléfono del cliente para WhatsApp.");
     return;
   }
   const msg = buildClientOrderUpdateWhatsAppMessage(order);
@@ -1033,7 +1033,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 /* ==========================================================
-  âœ… Cliente: recordar datos + borrar + autocompletar
+  ✅ Cliente: recordar datos + borrar + autocompletar
 ========================================================== */
 function loadCustomer() {
   try {
@@ -1108,10 +1108,10 @@ function normPhoneDigits(v) {
       setRememberEnabled(chk.checked);
       if (!chk.checked) {
         clearCustomer();
-        showToast("Datos no se guardarÃ¡n");
+        showToast("Datos no se guardarán");
       } else {
         saveCustomer(getCustomerInputs());
-        showToast("Datos se guardarÃ¡n");
+        showToast("Datos se guardarán");
       }
     });
   }
@@ -1198,7 +1198,7 @@ function saveReceipts(arr) {
   localStorage.setItem(RECEIPT_KEY + "_backup_ts", new Date().toISOString());
 }
 
-/** consecutivo simple (por dÃ­a) */
+/** consecutivo simple (por día) */
 function nextReceiptNo() {
   const d = new Date();
   const y = d.getFullYear();
@@ -1220,7 +1220,7 @@ function buildReceipt({ tipo, cliente, items, total, refId, extras }) {
     negocio: {
       nombre: "WISAND",
       nit: "NIT: (35532466-9)",
-      direccion: "(Calle 2A Este No. 7-04, La Arboleda, FacatativÃ¡)",
+      direccion: "(Calle 2A Este No. 7-04, La Arboleda, Facatativá)",
       telefono: "(313 358 5508)",
     },
     cliente: cliente || { nombre: "Consumidor final", telefono: "", direccion: "" },
@@ -1343,17 +1343,17 @@ function receiptHTML(receipt) {
     <div class="tot"><div>Total</div><div class="b">${formatCOP(receipt.total)}</div></div>
     ${Number(ex.descuento) ? `<div class="tot"><div>Descuento</div><div class="b">- ${formatCOP(Number(ex.descuento))}</div></div>` : ""}
     ${Number(ex.iva) ? `<div class="tot"><div>IVA</div><div class="b">${formatCOP(Number(ex.iva))}</div></div>` : ""}
-    ${ex.metodoPago ? `<div class="tot"><div>MÃ©todo</div><div class="b">${escapeHTML(ex.metodoPago)}</div></div>` : ""}
+    ${ex.metodoPago ? `<div class="tot"><div>Método</div><div class="b">${escapeHTML(ex.metodoPago)}</div></div>` : ""}
     ${Number(ex.recibido) ? `<div class="tot"><div>Recibido</div><div class="b">${formatCOP(Number(ex.recibido))}</div></div>` : ""}
     ${Number(ex.cambio) ? `<div class="tot"><div>Cambio</div><div class="b">${formatCOP(Number(ex.cambio))}</div></div>` : ""}
 
     <div class="sep"></div>
 
-    <div class="center muted">Gracias por tu compra ðŸ’™</div>
+    <div class="center muted">Gracias por tu compra 💙</div>
 
     <div class="actions">
-      <button onclick="window.print()">ðŸ–¨ï¸ Imprimir / Guardar PDF</button>
-      <button class="btn2" onclick="window.__sendReceiptWhatsApp && window.__sendReceiptWhatsApp()">ðŸ“² Enviar por WhatsApp</button>
+      <button onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
+      <button class="btn2" onclick="window.__sendReceiptWhatsApp && window.__sendReceiptWhatsApp()">📲 Enviar por WhatsApp</button>
     </div>
   </div>
 </body>
@@ -1365,24 +1365,24 @@ function buildReceiptWhatsAppText(receipt) {
   const c = receipt.cliente || {};
   const lines = [];
 
-  lines.push(`ðŸ§¾ *RECIBO ${receipt.no}*`);
-  lines.push(`ðŸª ${n.nombre || "WISAND"}`);
-  lines.push(`ðŸ•’ ${receipt.fechaISO ? new Date(receipt.fechaISO).toLocaleString("es-CO") : ""}`);
-  if (receipt.refId) lines.push(`ðŸ”Ž Ref: ${receipt.refId}`);
+  lines.push(`🧾 *RECIBO ${receipt.no}*`);
+  lines.push(`🏪 ${n.nombre || "WISAND"}`);
+  lines.push(`🕒 ${receipt.fechaISO ? new Date(receipt.fechaISO).toLocaleString("es-CO") : ""}`);
+  if (receipt.refId) lines.push(`🔎 Ref: ${receipt.refId}`);
 
   lines.push("");
-  lines.push(`ðŸ‘¤ Cliente: ${c.nombre || "Consumidor final"}`);
-  if (c.telefono) lines.push(`ðŸ“ž Tel: ${c.telefono}`);
-  if (c.direccion) lines.push(`ðŸ“ Dir: ${c.direccion}`);
+  lines.push(`👤 Cliente: ${c.nombre || "Consumidor final"}`);
+  if (c.telefono) lines.push(`📞 Tel: ${c.telefono}`);
+  if (c.direccion) lines.push(`📍 Dir: ${c.direccion}`);
 
   lines.push("");
-  lines.push("ðŸ›’ *Productos*");
+  lines.push("🛒 *Productos*");
   (receipt.items || []).forEach((it, i) => {
     lines.push(`${i + 1}. ${it.nombre} (${it.presentacion}) x${it.cantidad} = ${formatCOP(it.subtotal)}`);
   });
 
   lines.push("");
-  lines.push(`ðŸ’° *Total:* ${formatCOP(receipt.total)}`);
+  lines.push(`💰 *Total:* ${formatCOP(receipt.total)}`);
   return lines.join("\n");
 }
 
@@ -1406,7 +1406,7 @@ function openReceiptWindow(receipt) {
 function sendReceiptToWhatsApp(receipt, phoneDigits) {
   const tel = normalizeWhatsPhone(phoneDigits);
   if (!tel) {
-    alert("TelÃ©fono invÃ¡lido para WhatsApp.");
+    alert("Teléfono inválido para WhatsApp.");
     return;
   }
   const msg = buildReceiptWhatsAppText(receipt);
@@ -1414,7 +1414,7 @@ function sendReceiptToWhatsApp(receipt, phoneDigits) {
   openWindowSafe(url, "_blank");
 }
 
-/* âœ… Helpers: productos con stock bajo (para admin) */
+/* ✅ Helpers: productos con stock bajo (para admin) */
 function getLowStockProducts() {
   const saved = loadSavedProductsArray();
   return saved.filter((p) => (Number(p.stockCajas) || 0) <= STOCK_BAJO_LIMIT);
@@ -1456,7 +1456,7 @@ window.getReceiptByRef = getReceiptByRef;
 window.sendReceiptToWhatsApp = sendReceiptToWhatsApp;
 
 /* ==========================================================
-  âœ… EXPORTS EXTRA (IMPORTANTE para store.js)
+  ✅ EXPORTS EXTRA (IMPORTANTE para store.js)
 ========================================================== */
 window.LS_KEY = LS_KEY;
 window.CART_KEY = CART_KEY;
@@ -1484,7 +1484,7 @@ window.saveCustomer = saveCustomer;
 window.getCustomerInputs = getCustomerInputs;
 window.isRememberEnabled = isRememberEnabled;
 
-// âœ… API helpers (backend)
+// ✅ API helpers (backend)
 window.API_BASE = API_BASE;
 window.API_ENABLED = API_ENABLED;
 window.apiFetch = apiFetch;

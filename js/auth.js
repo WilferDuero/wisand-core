@@ -1,5 +1,5 @@
-﻿/* ==========================================================
-  auth.js â€” Login Admin
+/* ==========================================================
+  auth.js — Login Admin
 ========================================================== */
 
 (function () {
@@ -92,7 +92,7 @@
       localStorage.setItem(USER_KEY, JSON.stringify(data.user || {}));
       localStorage.setItem(ADMIN_FLAG, "true");
       localStorage.setItem(SESSION_KEY, String(Date.now()));
-      showToast("âœ… Acceso concedido");
+      showToast("✅ Acceso concedido");
       window.location.href = "admin.html";
     } catch (e) {
       localStorage.removeItem(TOKEN_KEY);
@@ -100,7 +100,7 @@
       localStorage.removeItem(ADMIN_FLAG);
       localStorage.removeItem(SESSION_KEY);
       setError(true);
-      showToast("âŒ Credenciales incorrectas o API no disponible");
+      showToast("❌ Credenciales incorrectas o API no disponible");
     }
   }
 
@@ -125,11 +125,11 @@
       passEl.type = showing ? "password" : "text";
       togglePass.classList.toggle("is-open", !showing);
       togglePass.setAttribute("aria-pressed", String(!showing));
-      togglePass.setAttribute("aria-label", showing ? "Mostrar contraseÃ±a" : "Ocultar contraseÃ±a");
+      togglePass.setAttribute("aria-label", showing ? "Mostrar contraseña" : "Ocultar contraseña");
     });
   }
 
-  // Si ya estÃ¡ logueado y la sesiÃ³n sigue viva, redirige
+  // Si ya está logueado y la sesión sigue viva, redirige
   (function checkSession() {
     if (localStorage.getItem(ADMIN_FLAG) !== "true") return;
     const ts = Number(localStorage.getItem(SESSION_KEY) || 0);
