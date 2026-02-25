@@ -22,6 +22,7 @@ import { computeSalesRevenueSummary } from "../../lib/sales-metrics";
 import { AdminTabParamList } from "../../navigation/types";
 import { useAuthStore } from "../../store/auth-store";
 import { InAppAlert, useSyncStore } from "../../store/sync-store";
+import { Product, Sale } from "../../types/domain";
 
 interface DashboardState {
   products: number;
@@ -33,10 +34,20 @@ interface DashboardState {
   salesRevenueMonth: number;
   salesRevenueYear: number;
   lowStockProducts: number;
+  productsNoRotation30d: number;
   users: number;
   reviews: number;
   healthOk: boolean;
   healthTime?: string;
+}
+
+interface NoRotationProductRow {
+  key: string;
+  nombre: string;
+  categoria: string;
+  stockCajas: number;
+  lastSoldAt: string | null;
+  daysWithoutRotation: number | null;
 }
 
 type MetricKey = keyof Omit<DashboardState, "healthOk" | "healthTime">;
@@ -65,6 +76,12 @@ const metricLabels: Array<{
   { key: "orders", title: "Pedidos", tone: "primary", icon: "receipt-outline" },
   { key: "pendingOrders", title: "Pendientes", tone: "warning", icon: "time-outline" },
   { key: "lowStockProducts", title: "Stock Bajo", tone: "danger", icon: "alert-circle-outline" },
+  {
+    key: "productsNoRotation30d",
+    title: "Sin rotacion 30d",
+    tone: "warning",
+    icon: "time-outline",
+  },
   { key: "sales", title: "Ventas", tone: "success", icon: "cash-outline" },
   { key: "salesRevenueToday", title: "Ingresos Hoy", tone: "success", icon: "today-outline" },
   { key: "salesRevenueMonth", title: "Ingresos Mes", tone: "success", icon: "calendar-outline" },
@@ -88,10 +105,137 @@ const quickActions: Array<{
 const priorityMetrics: MetricKey[] = [
   "pendingOrders",
   "lowStockProducts",
+  "productsNoRotation30d",
   "salesRevenueToday",
 ];
 
 const LOW_STOCK_LIMIT = 3;
+const NO_ROTATION_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const NO_ROTATION_PREVIEW_LIMIT = 8;
+
+const normalizeRef = (value: unknown) => String(value || "").trim().toLowerCase();
+
+const getProductIdentity = (product: Product) => {
+  const externalKey = normalizeRef(product.externalId);
+  if (externalKey) return externalKey;
+  return normalizeRef(product.id);
+};
+
+const toSaleTime = (sale: Sale) => {
+  const raw = String(sale.fechaISO || sale.createdAt || "").trim();
+  if (!raw) return 0;
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const resolveSaleItemProductKey = (
+  item: { id?: unknown; nombre?: unknown },
+  aliasesByProductKey: Map<string, string>,
+  uniqueNameToProductKey: Map<string, string | null>
+) => {
+  const itemId = normalizeRef(item?.id);
+  if (itemId) {
+    const fromId = aliasesByProductKey.get(itemId);
+    if (fromId) return fromId;
+  }
+  const itemName = normalizeRef(item?.nombre);
+  if (!itemName) return "";
+  const byName = uniqueNameToProductKey.get(itemName);
+  return byName || "";
+};
+
+const buildNoRotationReport = (products: Product[], sales: Sale[]) => {
+  const productByKey = new Map<string, Product>();
+  const aliasesByProductKey = new Map<string, string>();
+  const nameToProductKeys = new Map<string, string[]>();
+
+  products.forEach((product) => {
+    const key = getProductIdentity(product);
+    if (!key) return;
+
+    productByKey.set(key, product);
+    const aliases = [normalizeRef(product.id), normalizeRef(product.externalId)];
+    aliases.forEach((alias) => {
+      if (!alias) return;
+      aliasesByProductKey.set(alias, key);
+    });
+
+    const nameKey = normalizeRef(product.nombre);
+    if (!nameKey) return;
+    const existing = nameToProductKeys.get(nameKey) || [];
+    existing.push(key);
+    nameToProductKeys.set(nameKey, existing);
+  });
+
+  const uniqueNameToProductKey = new Map<string, string | null>();
+  nameToProductKeys.forEach((keys, nameKey) => {
+    const unique = [...new Set(keys)];
+    uniqueNameToProductKey.set(nameKey, unique.length === 1 ? unique[0] : null);
+  });
+
+  const now = Date.now();
+  const cutoff = now - NO_ROTATION_DAYS * DAY_MS;
+  const soldInWindow = new Set<string>();
+  const lastSoldAtByProductKey = new Map<string, number>();
+
+  sales.forEach((sale) => {
+    const saleTime = toSaleTime(sale);
+    if (!saleTime) return;
+    const items = Array.isArray(sale.items) ? sale.items : [];
+    items.forEach((rawItem) => {
+      const item = (rawItem || {}) as { id?: unknown; nombre?: unknown };
+      const productKey = resolveSaleItemProductKey(
+        item,
+        aliasesByProductKey,
+        uniqueNameToProductKey
+      );
+      if (!productKey) return;
+
+      const prevTime = lastSoldAtByProductKey.get(productKey) || 0;
+      if (saleTime > prevTime) {
+        lastSoldAtByProductKey.set(productKey, saleTime);
+      }
+      if (saleTime >= cutoff) {
+        soldInWindow.add(productKey);
+      }
+    });
+  });
+
+  const items: NoRotationProductRow[] = [];
+  productByKey.forEach((product, key) => {
+    if (soldInWindow.has(key)) return;
+    const lastTime = lastSoldAtByProductKey.get(key) || 0;
+    const stockCajas = Number(product.stockCajas) || 0;
+    items.push({
+      key,
+      nombre: String(product.nombre || "Producto"),
+      categoria: String(product.categoria || "Sin categoria"),
+      stockCajas,
+      lastSoldAt: lastTime ? new Date(lastTime).toISOString() : null,
+      daysWithoutRotation: lastTime ? Math.floor((now - lastTime) / DAY_MS) : null,
+    });
+  });
+
+  items.sort((left, right) => {
+    if (!left.lastSoldAt && right.lastSoldAt) return -1;
+    if (left.lastSoldAt && !right.lastSoldAt) return 1;
+    if (!left.lastSoldAt && !right.lastSoldAt) {
+      const stockDiff = right.stockCajas - left.stockCajas;
+      if (stockDiff !== 0) return stockDiff;
+      return left.nombre.localeCompare(right.nombre);
+    }
+    const leftMs = Date.parse(String(left.lastSoldAt || "")) || 0;
+    const rightMs = Date.parse(String(right.lastSoldAt || "")) || 0;
+    if (leftMs !== rightMs) return leftMs - rightMs;
+    return left.nombre.localeCompare(right.nombre);
+  });
+
+  return {
+    count: items.length,
+    items,
+  };
+};
 
 const getAlertDestinationTab = (alert: InAppAlert): keyof AdminTabParamList | null => {
   if (alert.type === "orders") {
@@ -131,10 +275,12 @@ export const DashboardScreen = () => {
     salesRevenueMonth: 0,
     salesRevenueYear: 0,
     lowStockProducts: 0,
+    productsNoRotation30d: 0,
     users: 0,
     reviews: 0,
     healthOk: false,
   });
+  const [noRotationProducts, setNoRotationProducts] = useState<NoRotationProductRow[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const loadDashboard = useCallback(async () => {
@@ -150,6 +296,11 @@ export const DashboardScreen = () => {
           listReviews(),
           role === "owner" ? listUsers() : Promise.resolve([]),
         ]);
+
+      const noRotationReport =
+        productsRes.status === "fulfilled" && salesRes.status === "fulfilled"
+          ? buildNoRotationReport(productsRes.value, salesRes.value)
+          : { count: 0, items: [] as NoRotationProductRow[] };
 
       const newState: DashboardState = {
         ...(salesRes.status === "fulfilled"
@@ -186,6 +337,7 @@ export const DashboardScreen = () => {
                 return stock > 0 && stock <= LOW_STOCK_LIMIT;
               }).length
             : 0,
+        productsNoRotation30d: noRotationReport.count,
         reviews: reviewsRes.status === "fulfilled" ? reviewsRes.value.length : 0,
         users:
           usersRes.status === "fulfilled" && Array.isArray(usersRes.value)
@@ -195,6 +347,7 @@ export const DashboardScreen = () => {
         healthTime: healthRes.status === "fulfilled" ? healthRes.value.time : undefined,
       };
       setState(newState);
+      setNoRotationProducts(noRotationReport.items);
 
       const previous = previousSnapshotRef.current;
       if (previous) {
@@ -404,6 +557,50 @@ export const DashboardScreen = () => {
             );
           })}
         </View>
+      </SectionCard>
+
+      <SectionCard title="Productos sin rotacion (30 dias)">
+        <Text style={styles.subtle}>
+          Productos sin ventas registradas en los ultimos {NO_ROTATION_DAYS} dias.
+        </Text>
+        {!noRotationProducts.length ? (
+          <Text style={styles.subtle}>Sin alertas. Todo el catalogo tuvo movimiento reciente.</Text>
+        ) : (
+          <>
+            {noRotationProducts.slice(0, NO_ROTATION_PREVIEW_LIMIT).map((item) => (
+              <View key={item.key} style={styles.noRotationRow}>
+                <View style={styles.noRotationInfo}>
+                  <Text style={styles.noRotationName}>{item.nombre}</Text>
+                  <Text style={styles.noRotationMeta}>
+                    {item.categoria} · Stock cajas: {item.stockCajas}
+                  </Text>
+                  <Text style={styles.noRotationMeta}>
+                    {item.lastSoldAt
+                      ? `Ultima venta: ${formatDateTime(item.lastSoldAt)}`
+                      : "Sin ventas historicas"}
+                  </Text>
+                </View>
+                <View style={styles.noRotationBadge}>
+                  <Text style={styles.noRotationBadgeText}>
+                    {item.daysWithoutRotation == null
+                      ? `>${NO_ROTATION_DAYS}d`
+                      : `${item.daysWithoutRotation}d`}
+                  </Text>
+                </View>
+              </View>
+            ))}
+            {noRotationProducts.length > NO_ROTATION_PREVIEW_LIMIT ? (
+              <Text style={styles.noRotationMore}>
+                +{noRotationProducts.length - NO_ROTATION_PREVIEW_LIMIT} productos adicionales.
+              </Text>
+            ) : null}
+            <ActionButton
+              label="Abrir inventario"
+              variant="secondary"
+              onPress={() => navigation.navigate("Productos")}
+            />
+          </>
+        )}
       </SectionCard>
 
       <SectionCard title="Atajos">
@@ -644,6 +841,50 @@ const styles = StyleSheet.create({
   quickActionHelper: {
     color: theme.colors.textMuted,
     fontSize: 11,
+    fontWeight: "700",
+  },
+  noRotationRow: {
+    borderWidth: 1,
+    borderColor: "rgba(245,158,11,0.3)",
+    backgroundColor: "rgba(245,158,11,0.08)",
+    borderRadius: theme.radius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  noRotationInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  noRotationName: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  noRotationMeta: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  noRotationBadge: {
+    borderWidth: 1,
+    borderColor: "rgba(180,83,9,0.3)",
+    backgroundColor: "rgba(180,83,9,0.12)",
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+  },
+  noRotationBadgeText: {
+    color: "#92400e",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  noRotationMore: {
+    color: theme.colors.textMuted,
+    fontSize: 12,
     fontWeight: "700",
   },
 });
