@@ -19,8 +19,8 @@ npm --prefix server run test:multitenant
 ```
 
 El script hace:
-- Crea tenant (si no existe) con `/internal/tenants`
-- Login de tenant 2 (`owner2`/`123456`)
+- Crea tenant (si no existe) con `/internal/tenants` y `code`
+- Login de tenant 2 (`owner2`/`123456`) por `tenant_code`
 - Crea producto en tenant 2
 - Verifica que tenant 2 si lo vea
 - Si defines credenciales tenant 1, valida aislamiento cruzado
@@ -36,9 +36,11 @@ Opcionales:
 - `TEST_API_BASE`
 - `TEST_TENANT2_ID`
 - `TEST_TENANT2_NAME`
+- `TEST_TENANT2_CODE`
 - `TEST_TENANT2_OWNER`
 - `TEST_TENANT2_PASSWORD`
 - `TEST_TENANT1_ID`
+- `TEST_TENANT1_CODE`
 - `TEST_TENANT1_USERNAME`
 - `TEST_TENANT1_PASSWORD`
 

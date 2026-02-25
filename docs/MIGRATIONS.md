@@ -44,6 +44,7 @@ El script:
 - Tabla `tenants`
   - `id`
   - `name`
+  - `code` (slug unico para login por empresa)
   - `created_at`
 - Columna `tenant_id` (NOT NULL, default `1`) en:
   - `users`, `products`, `orders`, `reviews`, `sales`, `push_tokens`
@@ -77,6 +78,7 @@ Body:
 ```json
 {
   "name": "Empresa 2",
+  "code": "empresa-2",
   "ownerUsername": "owner2",
   "ownerPassword": "123456",
   "ownerRole": "owner"
@@ -84,7 +86,21 @@ Body:
 ```
 
 Respuesta esperada:
-- `201` con `tenant.id` y `owner.id`
+- `201` con `tenant.id`, `tenant.code` y `owner.id`
+
+## Login por codigo de empresa
+
+Ahora `POST /auth/login` acepta `tenant_code` como alternativa a `tenant_id`.
+
+Ejemplo:
+
+```json
+{
+  "username": "owner2",
+  "password": "123456",
+  "tenant_code": "empresa-2"
+}
+```
 
 ## Validacion manual minima
 

@@ -45,6 +45,7 @@ npm --prefix apps/admin-mobile run start
 - JWT incluye `tenant_id`.
 - Cada query de lectura/escritura valida tenant.
 - `orders -> sales` conserva `tenant_id` y evita duplicados por `order_id`.
+- Login soporta `tenant_code` (slug de empresa) para separar acceso por negocio.
 
 ## Migraciones y testing
 
