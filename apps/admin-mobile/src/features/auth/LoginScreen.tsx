@@ -1,11 +1,8 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { ActionButton } from "../../components/ActionButton";
 import { FormField } from "../../components/FormField";
 import { ScreenContainer } from "../../components/ScreenContainer";
-import { ENV } from "../../config/env";
-import { theme } from "../../constants/theme";
 import { tenantCodeStorage } from "../../lib/tenant-code-storage";
 import { useAuthStore } from "../../store/auth-store";
 
@@ -53,20 +50,18 @@ export const LoginScreen = () => {
   };
 
   return (
-    <ScreenContainer scrollable={false} contentContainerStyle={styles.screenContent}>
-      <LinearGradient
-        colors={[theme.colors.gradientStart, theme.colors.gradientEnd]}
-        style={styles.header}
-      >
-        <Image source={require("../../../assets/icon.png")} style={styles.logo} />
-        <View style={styles.headerText}>
-          <Text style={styles.title}>WISAND</Text>
-          <Text style={styles.subtitle}>Panel Admin Movil</Text>
-        </View>
-      </LinearGradient>
+    <ScreenContainer scrollable={false} contentContainerStyle={styles.container}>
+      <View style={styles.logoContainer}>
+        <Image
+          source={require("../../../assets/brand/wisand_logo_main.png")}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+        <Text style={styles.subtitle}>Panel Admin Movil</Text>
+      </View>
 
-      <View style={styles.formCard}>
-        <Text style={styles.formTitle}>Acceso restringido</Text>
+      <View style={styles.formContainer}>
+        <Text style={styles.formTitle}>Acceso</Text>
         {authNotice ? (
           <View style={styles.noticeRow}>
             <Text style={styles.noticeText}>{authNotice}</Text>
@@ -79,7 +74,7 @@ export const LoginScreen = () => {
           label="Codigo de empresa"
           value={tenantCode}
           onChangeText={setTenantCode}
-          placeholder="ej: ferreteria-centro"
+          placeholder="ej: wisand-demo"
         />
         <FormField label="Usuario" value={username} onChangeText={setUsername} placeholder="owner o staff" />
         <FormField
@@ -96,12 +91,11 @@ export const LoginScreen = () => {
           loading={isLoginPending}
           disabled={isLoginPending}
         />
-        <Text style={styles.apiLabel}>API: {ENV.apiBaseUrl}</Text>
       </View>
 
       {isLoginPending ? (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator color={theme.colors.white} size="large" />
+          <ActivityIndicator color="#0f172a" size="large" />
         </View>
       ) : null}
     </ScreenContainer>
@@ -109,61 +103,45 @@ export const LoginScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  screenContent: {
-    justifyContent: "center",
-    gap: 14,
+  container: {
     flex: 1,
-    padding: 16,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 24,
+    justifyContent: "center",
+    gap: 0,
   },
-  header: {
-    borderRadius: theme.radius.lg,
-    minHeight: 128,
-    padding: 16,
-    flexDirection: "row",
-    gap: 12,
+  logoContainer: {
     alignItems: "center",
+    marginBottom: 40,
   },
   logo: {
-    width: 74,
-    height: 74,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.7)",
-  },
-  headerText: {
-    flex: 1,
-    gap: 4,
-  },
-  title: {
-    color: theme.colors.white,
-    fontWeight: "800",
-    fontSize: 22,
+    width: 240,
+    height: 64,
   },
   subtitle: {
-    color: "rgba(255,255,255,0.95)",
-    fontWeight: "600",
+    marginTop: 8,
+    fontSize: 14,
+    color: "#64748B",
+    fontWeight: "500",
   },
-  formCard: {
-    borderRadius: theme.radius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.card,
-    padding: 14,
+  formContainer: {
+    width: "100%",
     gap: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 14,
+    padding: 16,
+    backgroundColor: "#FFFFFF",
   },
   formTitle: {
-    color: theme.colors.text,
+    color: "#0F172A",
     fontWeight: "800",
     fontSize: 18,
   },
-  apiLabel: {
-    color: theme.colors.textMuted,
-    fontSize: 12,
-  },
   error: {
-    color: "#991b1b",
+    color: "#991B1B",
     backgroundColor: "rgba(239,68,68,0.12)",
-    borderRadius: theme.radius.sm,
+    borderRadius: 10,
     padding: 10,
     borderWidth: 1,
     borderColor: "rgba(239,68,68,0.25)",
@@ -176,12 +154,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(245,158,11,0.35)",
     backgroundColor: "rgba(245,158,11,0.1)",
-    borderRadius: theme.radius.sm,
+    borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
   noticeText: {
-    color: "#854d0e",
+    color: "#854D0E",
     fontSize: 12,
     fontWeight: "800",
     flex: 1,
@@ -193,13 +171,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   noticeCloseText: {
-    color: "#854d0e",
+    color: "#854D0E",
     fontSize: 12,
     fontWeight: "900",
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.28)",
+    backgroundColor: "rgba(15,23,42,0.12)",
     alignItems: "center",
     justifyContent: "center",
   },

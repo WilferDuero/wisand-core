@@ -5,14 +5,14 @@
     "version": "1.0.0",
     "scheme": "wisand-admin",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/brand/wisand_icon.png",
     "primaryColor": "#21808d",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/brand/wisand_splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#fcfcf9"
+      "backgroundColor": "#FFFFFF"
     },
     "ios": {
       "bundleIdentifier": "com.wisand.adminmobile",
@@ -22,8 +22,8 @@
       "package": "com.wisand.adminmobile",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#fcfcf9"
+        "foregroundImage": "./assets/brand/wisand_icon.png",
+        "backgroundColor": "#FFFFFF"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
