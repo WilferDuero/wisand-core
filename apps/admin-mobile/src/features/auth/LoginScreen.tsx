@@ -1,43 +1,53 @@
-﻿import { useState } from "react";
-import {
-  ActivityIndicator,
-  Image,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { ActionButton } from "../../components/ActionButton";
 import { FormField } from "../../components/FormField";
 import { ScreenContainer } from "../../components/ScreenContainer";
-import { theme } from "../../constants/theme";
-import { useAuthStore } from "../../store/auth-store";
 import { ENV } from "../../config/env";
+import { theme } from "../../constants/theme";
+import { tenantCodeStorage } from "../../lib/tenant-code-storage";
+import { useAuthStore } from "../../store/auth-store";
 
 export const LoginScreen = () => {
   const login = useAuthStore((state) => state.login);
   const authNotice = useAuthStore((state) => state.authNotice);
   const consumeAuthNotice = useAuthStore((state) => state.consumeAuthNotice);
   const isLoginPending = useAuthStore((state) => state.isLoginPending);
+  const [tenantCode, setTenantCode] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  useEffect(() => {
+    let active = true;
+    const loadTenantCode = async () => {
+      const stored = await tenantCodeStorage.get();
+      if (active && stored) {
+        setTenantCode(stored);
+      }
+    };
+    void loadTenantCode();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const handleLogin = async () => {
+    const company = tenantCode.trim().toLowerCase();
     const user = username.trim();
     const pass = password.trim();
-    if (!user || !pass) {
-      setErrorMessage("Usuario y contrasena son obligatorios.");
+    if (!company || !user || !pass) {
+      setErrorMessage("Codigo de empresa, usuario y contrasena son obligatorios.");
       return;
     }
 
     try {
       setErrorMessage(null);
-      await login(user, pass);
+      await login(user, pass, company);
+      await tenantCodeStorage.set(company);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "No fue posible iniciar sesion.";
+      const message = error instanceof Error ? error.message : "No fue posible iniciar sesion.";
       setErrorMessage(message);
     }
   };
@@ -48,10 +58,7 @@ export const LoginScreen = () => {
         colors={[theme.colors.gradientStart, theme.colors.gradientEnd]}
         style={styles.header}
       >
-        <Image
-          source={require("../../../assets/icon.png")}
-          style={styles.logo}
-        />
+        <Image source={require("../../../assets/icon.png")} style={styles.logo} />
         <View style={styles.headerText}>
           <Text style={styles.title}>WISAND</Text>
           <Text style={styles.subtitle}>Panel Admin Movil</Text>
@@ -69,11 +76,12 @@ export const LoginScreen = () => {
           </View>
         ) : null}
         <FormField
-          label="Usuario"
-          value={username}
-          onChangeText={setUsername}
-          placeholder="owner o staff"
+          label="Codigo de empresa"
+          value={tenantCode}
+          onChangeText={setTenantCode}
+          placeholder="ej: ferreteria-centro"
         />
+        <FormField label="Usuario" value={username} onChangeText={setUsername} placeholder="owner o staff" />
         <FormField
           label="Contrasena"
           value={password}
@@ -196,4 +204,3 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 });
-

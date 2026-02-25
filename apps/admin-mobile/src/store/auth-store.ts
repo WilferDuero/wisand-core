@@ -16,7 +16,7 @@ interface AuthState {
   isBootstrapping: boolean;
   isLoginPending: boolean;
   bootstrap: () => Promise<void>;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string, tenantCode?: string) => Promise<void>;
   logout: (options?: { skipPushUnregister?: boolean; notice?: string | null }) => Promise<void>;
   consumeAuthNotice: () => void;
 }
@@ -55,10 +55,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  login: async (username: string, password: string) => {
+  login: async (username: string, password: string, tenantCode?: string) => {
     set({ isLoginPending: true });
     try {
-      const result = await loginAdmin(username, password);
+      const result = await loginAdmin(username, password, tenantCode);
       await tokenStorage.set(result.token);
       set({
         status: "authenticated",

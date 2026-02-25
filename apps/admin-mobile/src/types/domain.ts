@@ -3,6 +3,7 @@ export type UserRole = "owner" | "staff";
 export interface AuthUser {
   id: number;
   tenant_id?: number;
+  tenant_code?: string | null;
   username: string;
   role: UserRole;
 }
