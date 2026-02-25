@@ -1,6 +1,9 @@
-require("dotenv").config();
-
 const path = require("path");
+require("dotenv").config({
+  path: path.join(__dirname, ".env"),
+  override: true,
+});
+
 const fs = require("fs");
 const sqlite3 = require("sqlite3");
 const bcrypt = require("bcryptjs");
@@ -9,10 +12,73 @@ const { open } = require("sqlite");
 const usePostgres = !!process.env.DATABASE_URL;
 const DEFAULT_TENANT_ID = 1;
 const DEFAULT_TENANT_NAME = "Default Tenant";
+const DEFAULT_TENANT_CODE = "default";
 
 function replacePlaceholders(sql) {
   let i = 0;
   return sql.replace(/\?/g, () => `$${++i}`);
+}
+
+function normalizeTenantCode(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+}
+
+function buildTenantCodeBase(row) {
+  const id = Number(row?.id || 0);
+  if (id === DEFAULT_TENANT_ID) return DEFAULT_TENANT_CODE;
+  return (
+    normalizeTenantCode(row?.code) ||
+    normalizeTenantCode(row?.name) ||
+    (id > 0 ? `tenant-${id}` : "tenant")
+  );
+}
+
+function nextAvailableTenantCode(baseCode, usedCodes) {
+  let candidate = normalizeTenantCode(baseCode) || "tenant";
+  if (!usedCodes.has(candidate)) return candidate;
+  let suffix = 2;
+  while (usedCodes.has(`${candidate}-${suffix}`)) {
+    suffix += 1;
+  }
+  return `${candidate}-${suffix}`;
+}
+
+async function ensureTenantCodes(db) {
+  const rows = await db.all("SELECT id, name, code FROM tenants ORDER BY id ASC");
+  const used = new Set();
+
+  for (const row of rows || []) {
+    const id = Number(row?.id || 0);
+    const currentCode = normalizeTenantCode(row?.code);
+    const preferredBase = buildTenantCodeBase(row);
+
+    let nextCode = currentCode;
+    if (
+      !nextCode ||
+      used.has(nextCode) ||
+      (id === DEFAULT_TENANT_ID && nextCode !== DEFAULT_TENANT_CODE)
+    ) {
+      if (id === DEFAULT_TENANT_ID) {
+        nextCode = DEFAULT_TENANT_CODE;
+      } else {
+        nextCode = nextAvailableTenantCode(preferredBase, used);
+      }
+    }
+
+    if (used.has(nextCode)) {
+      nextCode = nextAvailableTenantCode(preferredBase, used);
+    }
+
+    used.add(nextCode);
+    if (String(row?.code || "") !== nextCode) {
+      await db.run("UPDATE tenants SET code = ? WHERE id = ?", [nextCode, id]);
+    }
+  }
 }
 
 async function applySqliteMultiTenantMigration(db) {
@@ -20,11 +86,13 @@ async function applySqliteMultiTenantMigration(db) {
     CREATE TABLE IF NOT EXISTS tenants (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
+      code TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
 
   const alterStatements = [
+    "ALTER TABLE tenants ADD COLUMN code TEXT;",
     "ALTER TABLE products ADD COLUMN externalId TEXT;",
     "ALTER TABLE orders ADD COLUMN externalId TEXT;",
     "ALTER TABLE users ADD COLUMN tenant_id INTEGER NOT NULL DEFAULT 1;",
@@ -46,8 +114,9 @@ async function applySqliteMultiTenantMigration(db) {
     DEFAULT_TENANT_ID,
     DEFAULT_TENANT_NAME,
   ]);
-  await db.run("UPDATE tenants SET name = ? WHERE id = ?", [
+  await db.run("UPDATE tenants SET name = ?, code = ? WHERE id = ?", [
     DEFAULT_TENANT_NAME,
+    DEFAULT_TENANT_CODE,
     DEFAULT_TENANT_ID,
   ]);
 
@@ -70,6 +139,7 @@ async function applySqliteMultiTenantMigration(db) {
     "DROP INDEX IF EXISTS idx_sales_ref_user;",
     "DROP INDEX IF EXISTS idx_push_tokens_role_active;",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username);",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_code ON tenants(code) WHERE code IS NOT NULL AND code <> '';",
     "CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users(tenant_id);",
     "CREATE INDEX IF NOT EXISTS idx_products_tenant_id ON products(tenant_id);",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_tenant_externalId ON orders(tenant_id, externalId) WHERE externalId IS NOT NULL;",
@@ -94,9 +164,11 @@ async function applyPostgresMultiTenantMigration(pool) {
     CREATE TABLE IF NOT EXISTS tenants (
       id BIGSERIAL PRIMARY KEY,
       name TEXT NOT NULL,
+      code TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     `,
+    "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS code TEXT;",
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS externalId TEXT;",
     "ALTER TABLE orders ADD COLUMN IF NOT EXISTS externalId TEXT;",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id BIGINT;",
@@ -107,8 +179,8 @@ async function applyPostgresMultiTenantMigration(pool) {
     "ALTER TABLE push_tokens ADD COLUMN IF NOT EXISTS tenant_id BIGINT;",
     "ALTER TABLE sales ADD COLUMN IF NOT EXISTS order_id BIGINT;",
     "ALTER TABLE push_tokens ADD COLUMN IF NOT EXISTS userId BIGINT;",
-    "INSERT INTO tenants (id, name) VALUES (1, 'Default Tenant') ON CONFLICT (id) DO NOTHING;",
-    "UPDATE tenants SET name = 'Default Tenant' WHERE id = 1;",
+    "INSERT INTO tenants (id, name, code) VALUES (1, 'Default Tenant', 'default') ON CONFLICT (id) DO NOTHING;",
+    "UPDATE tenants SET name = 'Default Tenant', code = 'default' WHERE id = 1;",
     "UPDATE users SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0;",
     "UPDATE products SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0;",
     "UPDATE orders SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0;",
@@ -131,6 +203,7 @@ async function applyPostgresMultiTenantMigration(pool) {
     "DROP INDEX IF EXISTS idx_sales_ref_user;",
     "DROP INDEX IF EXISTS idx_push_tokens_role_active;",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username);",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_code ON tenants(code) WHERE code IS NOT NULL AND code <> '';",
     "CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users(tenant_id);",
     "CREATE INDEX IF NOT EXISTS idx_products_tenant_id ON products(tenant_id);",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_tenant_externalId ON orders(tenant_id, externalId) WHERE externalId IS NOT NULL;",
@@ -151,12 +224,13 @@ async function applyPostgresMultiTenantMigration(pool) {
 
 async function ensureDefaultTenant(db, engine) {
   if (engine === "postgres") {
-    await db.run("INSERT INTO tenants (id, name) VALUES (?, ?) ON CONFLICT (id) DO NOTHING", [
-      DEFAULT_TENANT_ID,
+    await db.run(
+      "INSERT INTO tenants (id, name, code) VALUES (?, ?, ?) ON CONFLICT (id) DO NOTHING",
+      [DEFAULT_TENANT_ID, DEFAULT_TENANT_NAME, DEFAULT_TENANT_CODE]
+    );
+    await db.run("UPDATE tenants SET name = ?, code = ? WHERE id = ?", [
       DEFAULT_TENANT_NAME,
-    ]);
-    await db.run("UPDATE tenants SET name = ? WHERE id = ?", [
-      DEFAULT_TENANT_NAME,
+      DEFAULT_TENANT_CODE,
       DEFAULT_TENANT_ID,
     ]);
     await db.get(
@@ -165,12 +239,14 @@ async function ensureDefaultTenant(db, engine) {
     return DEFAULT_TENANT_ID;
   }
 
-  await db.run("INSERT OR IGNORE INTO tenants (id, name) VALUES (?,?)", [
+  await db.run("INSERT OR IGNORE INTO tenants (id, name, code) VALUES (?,?,?)", [
     DEFAULT_TENANT_ID,
     DEFAULT_TENANT_NAME,
+    DEFAULT_TENANT_CODE,
   ]);
-  await db.run("UPDATE tenants SET name = ? WHERE id = ?", [
+  await db.run("UPDATE tenants SET name = ?, code = ? WHERE id = ?", [
     DEFAULT_TENANT_NAME,
+    DEFAULT_TENANT_CODE,
     DEFAULT_TENANT_ID,
   ]);
   return DEFAULT_TENANT_ID;
@@ -179,6 +255,7 @@ async function ensureDefaultTenant(db, engine) {
 async function seedOwner(db, engine) {
   try {
     const tenantId = await ensureDefaultTenant(db, engine);
+    await ensureTenantCodes(db);
     const row = await db.get("SELECT COUNT(*) as c FROM users WHERE tenant_id = ?", [tenantId]);
     const count = Number(row?.c ?? row?.count ?? 0);
     if (!count) {
@@ -224,6 +301,7 @@ async function initSqlite() {
     CREATE TABLE IF NOT EXISTS tenants (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
+      code TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -333,6 +411,7 @@ async function initPostgres() {
     CREATE TABLE IF NOT EXISTS tenants (
       id BIGSERIAL PRIMARY KEY,
       name TEXT NOT NULL,
+      code TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     `,
@@ -471,4 +550,6 @@ module.exports = {
   usePostgres,
   DEFAULT_TENANT_ID,
   DEFAULT_TENANT_NAME,
+  DEFAULT_TENANT_CODE,
+  normalizeTenantCode,
 };

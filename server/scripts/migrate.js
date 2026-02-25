@@ -1,11 +1,16 @@
 #!/usr/bin/env node
-require("dotenv").config({ override: true });
+const path = require("path");
+require("dotenv").config({
+  path: path.join(__dirname, "..", ".env"),
+  override: true,
+});
 
 const {
   dbPromise,
   usePostgres,
   DEFAULT_TENANT_ID,
   DEFAULT_TENANT_NAME,
+  DEFAULT_TENANT_CODE,
 } = require("../db");
 
 const asCount = (row) => Number(row?.c ?? row?.count ?? 0);
@@ -25,8 +30,9 @@ async function main() {
     await db.get(`SELECT tenant_id FROM ${tableName} LIMIT 1`);
   }
   await db.get("SELECT order_id FROM sales LIMIT 1");
+  await db.get("SELECT code FROM tenants LIMIT 1");
 
-  const tenant = await db.get("SELECT id, name, created_at FROM tenants WHERE id = ?", [
+  const tenant = await db.get("SELECT id, name, code, created_at FROM tenants WHERE id = ?", [
     DEFAULT_TENANT_ID,
   ]);
 
@@ -41,7 +47,7 @@ async function main() {
   console.log(
     `[migrate] default_tenant_id=${tenant?.id || DEFAULT_TENANT_ID} default_tenant_name=${
       tenant?.name || DEFAULT_TENANT_NAME
-    }`
+    } default_tenant_code=${tenant?.code || DEFAULT_TENANT_CODE}`
   );
   for (const [tableName, count] of Object.entries(tableCounts)) {
     console.log(`[migrate] ${tableName}.tenant_${DEFAULT_TENANT_ID}=${count}`);

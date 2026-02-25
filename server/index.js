@@ -1,4 +1,8 @@
-require("dotenv").config({ override: true });
+const path = require("path");
+require("dotenv").config({
+  path: path.join(__dirname, ".env"),
+  override: true,
+});
 
 const express = require("express");
 const cors = require("cors");
@@ -6,7 +10,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const https = require("https");
 const crypto = require("crypto");
-const { dbPromise, DEFAULT_TENANT_ID } = require("./db");
+const { dbPromise, DEFAULT_TENANT_ID, normalizeTenantCode } = require("./db");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -68,7 +72,13 @@ app.use(
   cors({
     origin: corsOrigin,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Tenant-Id", "X-Master-Key"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Tenant-Id",
+      "X-Tenant-Code",
+      "X-Master-Key",
+    ],
     optionsSuccessStatus: 204,
   })
 );
@@ -121,6 +131,64 @@ const pickTenantId = (req) => {
   );
   return headerTenant || queryTenant || bodyTenant || DEFAULT_TENANT_ID;
 };
+
+const pickRawTenantCode = (req) => {
+  const headerCode = String(req.headers?.["x-tenant-code"] || "").trim();
+  const queryCode = String(
+    pick(req.query, "tenant_code", "tenantCode", "companyCode", "businessCode") || ""
+  ).trim();
+  const bodyCode = String(
+    pick(req.body, "tenant_code", "tenantCode", "code", "companyCode", "businessCode") || ""
+  ).trim();
+  return headerCode || queryCode || bodyCode || "";
+};
+
+const pickTenantCode = (req) => normalizeTenantCode(pickRawTenantCode(req));
+
+async function resolveLoginTenant(db, req) {
+  const rawCode = pickRawTenantCode(req);
+  const requestedCode = pickTenantCode(req);
+  if (rawCode && !requestedCode) {
+    return {
+      tenantId: 0,
+      tenantCode: "",
+    };
+  }
+  if (requestedCode) {
+    const tenantByCode = await db.get("SELECT id, code FROM tenants WHERE code = ?", [
+      requestedCode,
+    ]);
+    if (!tenantByCode?.id) {
+      return {
+        tenantId: 0,
+        tenantCode: requestedCode,
+      };
+    }
+    return {
+      tenantId: toTenantId(tenantByCode.id, 0),
+      tenantCode: normalizeTenantCode(tenantByCode.code) || requestedCode,
+    };
+  }
+
+  const tenantId = pickTenantId(req);
+  const tenantById = await db.get("SELECT id, code FROM tenants WHERE id = ?", [tenantId]);
+  return {
+    tenantId,
+    tenantCode: normalizeTenantCode(tenantById?.code) || "",
+  };
+}
+
+async function nextTenantCode(db, seed) {
+  const baseCode = normalizeTenantCode(seed) || "tenant";
+  let candidate = baseCode;
+  let suffix = 2;
+  while (true) {
+    const existing = await db.get("SELECT id FROM tenants WHERE code = ?", [candidate]);
+    if (!existing?.id) return candidate;
+    candidate = `${baseCode}-${suffix}`;
+    suffix += 1;
+  }
+}
 
 const getRequestTenantId = (req) => {
   const userTenant = toTenantId(pick(req.user, "tenant_id", "tenantId"), 0);
@@ -539,7 +607,6 @@ app.post("/auth/login", async (req, res) => {
   }
 
   const { username = "", password = "" } = req.body || {};
-  const tenantId = pickTenantId(req);
   const u = String(username || "").trim();
   const p = String(password || "").trim();
   if (!u || !p) {
@@ -548,20 +615,26 @@ app.post("/auth/login", async (req, res) => {
   }
 
   const db = await dbPromise;
+  const tenantLogin = await resolveLoginTenant(db, req);
+  const tenantId = toTenantId(tenantLogin.tenantId, 0);
+  if (!tenantId) {
+    recordLoginFailure(ip);
+    return res.status(401).json({ error: "Credenciales invalidas" });
+  }
   const user = await db.get("SELECT * FROM users WHERE username = ? AND tenant_id = ?", [
     u,
     tenantId,
   ]);
   if (!user) {
     recordLoginFailure(ip);
-    return res.status(401).json({ error: "Credenciales inválidas" });
+    return res.status(401).json({ error: "Credenciales invalidas" });
   }
 
   const hash = user.passwordHash || user.passwordhash || "";
   const ok = await bcrypt.compare(p, hash);
   if (!ok) {
     recordLoginFailure(ip);
-    return res.status(401).json({ error: "Credenciales inválidas" });
+    return res.status(401).json({ error: "Credenciales invalidas" });
   }
 
   clearLoginAttempts(ip);
@@ -571,6 +644,7 @@ app.post("/auth/login", async (req, res) => {
     user: {
       id: user.id,
       tenant_id: toTenantId(pick(user, "tenant_id", "tenantId"), tenantId),
+      tenant_code: tenantLogin.tenantCode || null,
       username: user.username,
       role: user.role,
     },
@@ -589,6 +663,10 @@ app.get("/auth/me", authRequired, async (req, res) => {
 
 app.post("/internal/tenants", masterKeyRequired, async (req, res) => {
   const tenantName = String(pick(req.body, "name", "tenantName") || "").trim();
+  const tenantCodeRaw = String(
+    pick(req.body, "code", "tenantCode", "tenant_code", "businessCode", "companyCode") || ""
+  ).trim();
+  const tenantCodeInput = normalizeTenantCode(tenantCodeRaw);
   const ownerUsername = String(pick(req.body, "ownerUsername", "username") || "").trim();
   const ownerPassword = String(pick(req.body, "ownerPassword", "password") || "").trim();
   const ownerRole = String(pick(req.body, "ownerRole", "role") || "owner")
@@ -596,6 +674,9 @@ app.post("/internal/tenants", masterKeyRequired, async (req, res) => {
     .toLowerCase();
 
   if (!tenantName) return res.status(400).json({ error: "name es requerido" });
+  if (tenantCodeRaw && !tenantCodeInput) {
+    return res.status(400).json({ error: "code es invalido" });
+  }
   if (!ownerUsername || !ownerPassword) {
     return res.status(400).json({ error: "ownerUsername y ownerPassword son requeridos" });
   }
@@ -609,7 +690,26 @@ app.post("/internal/tenants", masterKeyRequired, async (req, res) => {
     return res.status(409).json({ error: "El tenant ya existe" });
   }
 
-  const tenantInsert = await db.run("INSERT INTO tenants (name) VALUES (?)", [tenantName]);
+  if (tenantCodeInput) {
+    const existingCode = await db.get("SELECT id FROM tenants WHERE code = ?", [tenantCodeInput]);
+    if (existingCode?.id) {
+      return res.status(409).json({ error: "El codigo de tenant ya existe" });
+    }
+  }
+
+  const tenantCode = tenantCodeInput || (await nextTenantCode(db, tenantName));
+  let tenantInsert = null;
+  try {
+    tenantInsert = await db.run("INSERT INTO tenants (name, code) VALUES (?,?)", [
+      tenantName,
+      tenantCode,
+    ]);
+  } catch (error) {
+    if (/unique/i.test(String(error?.message || ""))) {
+      return res.status(409).json({ error: "El codigo de tenant ya existe" });
+    }
+    throw error;
+  }
   const tenantId = toInt(tenantInsert?.lastID, 0);
   if (!tenantId) {
     return res.status(500).json({ error: "No se pudo crear el tenant" });
@@ -625,6 +725,7 @@ app.post("/internal/tenants", masterKeyRequired, async (req, res) => {
       tenant: {
         id: tenantId,
         name: tenantName,
+        code: tenantCode,
       },
       owner: {
         id: ownerInsert.lastID,
