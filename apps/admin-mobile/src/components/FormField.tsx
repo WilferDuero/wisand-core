@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   KeyboardTypeOptions,
@@ -8,7 +8,8 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { theme } from "../constants/theme";
+import { AppTheme } from "../constants/theme";
+import { useBrandTheme } from "../providers/BrandingProvider";
 
 interface FormFieldProps {
   label: string;
@@ -33,6 +34,8 @@ export const FormField = ({
   editable = true,
   showPasswordToggle = true,
 }: FormFieldProps) => {
+  const theme = useBrandTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const canTogglePassword = secureTextEntry && showPasswordToggle && !multiline;
 
@@ -76,46 +79,47 @@ export const FormField = ({
   );
 };
 
-const styles = StyleSheet.create({
-  wrapper: {
-    gap: 6,
-  },
-  label: {
-    color: theme.colors.text,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  inputWrapper: {
-    position: "relative",
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radius.sm,
-    backgroundColor: theme.colors.surface,
-    color: theme.colors.text,
-    minHeight: 42,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-  },
-  inputWithToggle: {
-    paddingRight: 42,
-  },
-  toggleButton: {
-    position: "absolute",
-    right: 10,
-    top: 11,
-    width: 22,
-    height: 22,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  multiline: {
-    minHeight: 80,
-    textAlignVertical: "top",
-  },
-  disabled: {
-    opacity: 0.7,
-  },
-});
+const createStyles = (theme: AppTheme) =>
+  StyleSheet.create({
+    wrapper: {
+      gap: 6,
+    },
+    label: {
+      color: theme.colors.text,
+      fontSize: 13,
+      fontWeight: "700",
+    },
+    inputWrapper: {
+      position: "relative",
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: theme.radius.sm,
+      backgroundColor: theme.colors.surface,
+      color: theme.colors.text,
+      minHeight: 42,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 14,
+    },
+    inputWithToggle: {
+      paddingRight: 42,
+    },
+    toggleButton: {
+      position: "absolute",
+      right: 10,
+      top: 11,
+      width: 22,
+      height: 22,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    multiline: {
+      minHeight: 80,
+      textAlignVertical: "top",
+    },
+    disabled: {
+      opacity: 0.7,
+    },
+  });

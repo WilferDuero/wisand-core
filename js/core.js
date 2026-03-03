@@ -28,6 +28,13 @@ const API_ENABLED = (() => {
   const v = localStorage.getItem("API_ENABLED");
   return v === null ? true : v !== "false";
 })();
+const TENANT_CODE_KEY = "wisand_tenant_code_v1";
+const normalizeTenantCode = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 const TENANT_ID_KEY = "tenant_id_v1";
 const ACTIVE_TENANT_ID = (() => {
   try {
@@ -44,7 +51,26 @@ const ACTIVE_TENANT_ID = (() => {
   const stored = parseInt(localStorage.getItem(TENANT_ID_KEY) || "", 10);
   return Number.isFinite(stored) && stored > 0 ? stored : 1;
 })();
+const ACTIVE_TENANT_CODE = (() => {
+  const fromBranding = normalizeTenantCode(window.WISAND_ACTIVE_TENANT_CODE || "");
+  if (fromBranding) {
+    localStorage.setItem(TENANT_CODE_KEY, fromBranding);
+    return fromBranding;
+  }
+  try {
+    const params = new URLSearchParams(window.location?.search || "");
+    const fromQuery = normalizeTenantCode(
+      params.get("tenant_code") || params.get("tenantCode") || params.get("tenant") || ""
+    );
+    if (fromQuery) {
+      localStorage.setItem(TENANT_CODE_KEY, fromQuery);
+      return fromQuery;
+    }
+  } catch {}
+  return normalizeTenantCode(localStorage.getItem(TENANT_CODE_KEY) || "");
+})();
 window.ACTIVE_TENANT_ID = ACTIVE_TENANT_ID;
+window.ACTIVE_TENANT_CODE = ACTIVE_TENANT_CODE;
 
 /* Umbral de alerta de stock (basado en cajas disponibles) */
 const STOCK_BAJO_LIMIT = 2;
@@ -182,6 +208,13 @@ async function apiFetch(path, options = {}) {
     "X-Tenant-Id": String(ACTIVE_TENANT_ID),
     ...(options.headers || {}),
   };
+  const activeTenantCode =
+    normalizeTenantCode(
+      window.getActiveTenantCode?.() || window.WISAND_ACTIVE_TENANT_CODE || localStorage.getItem(TENANT_CODE_KEY)
+    ) || ACTIVE_TENANT_CODE;
+  if (activeTenantCode) {
+    headers["X-Tenant-Code"] = activeTenantCode;
+  }
   const token = localStorage.getItem(ADMIN_TOKEN_KEY);
   if (token) headers.Authorization = `Bearer ${token}`;
 
@@ -195,10 +228,19 @@ async function apiFetch(path, options = {}) {
   }
 }
 
-async function apiLogin(username, password) {
+async function apiLogin(username, password, tenantCodeInput) {
+  const activeTenantCode = normalizeTenantCode(
+    tenantCodeInput ||
+      window.getActiveTenantCode?.() ||
+      window.WISAND_ACTIVE_TENANT_CODE ||
+      localStorage.getItem(TENANT_CODE_KEY)
+  );
+  const payload = activeTenantCode
+    ? { username, password, tenant_code: activeTenantCode }
+    : { username, password, tenant_id: ACTIVE_TENANT_ID };
   return apiFetch("/auth/login", {
     method: "POST",
-    body: JSON.stringify({ username, password, tenant_id: ACTIVE_TENANT_ID }),
+    body: JSON.stringify(payload),
   });
 }
 

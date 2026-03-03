@@ -1,10 +1,12 @@
 /* ==========================================================
-  auth.js — Login Admin
+  auth.js - Login Admin
 ========================================================== */
 
 (function () {
+  const TENANT_CODE_KEY = "wisand_tenant_code_v1";
   const userEl = document.getElementById("loginUser");
   const passEl = document.getElementById("loginPass");
+  const tenantEl = document.getElementById("loginTenantCode");
   const btnEl = document.getElementById("loginBtn");
   const errEl = document.getElementById("loginError");
   const demoBox = document.getElementById("demoCredentials");
@@ -18,6 +20,13 @@
   const TOKEN_KEY = window.ADMIN_TOKEN_KEY || "admin_token_v1";
   const USER_KEY = window.ADMIN_USER_KEY || "admin_user_v1";
 
+  const normalizeTenantCode = (value) =>
+    String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
   const isFile = window.location?.protocol === "file:";
   const isLocalHost =
     window.location?.hostname === "localhost" || window.location?.hostname === "127.0.0.1";
@@ -26,6 +35,28 @@
   const showDemo = DEMO_MODE && (isFile || isLocalHost || looksLocalApi);
   if (demoBox) demoBox.style.display = showDemo ? "block" : "none";
   const DEFAULT_API_BASE = "https://wisand.onrender.com";
+
+  function getActiveTenantCode() {
+    return normalizeTenantCode(
+      tenantEl?.value ||
+        window.getActiveTenantCode?.() ||
+        window.WISAND_ACTIVE_TENANT_CODE ||
+        localStorage.getItem(TENANT_CODE_KEY)
+    );
+  }
+
+  function setActiveTenantCode(tenantCode) {
+    const normalized = normalizeTenantCode(tenantCode);
+    if (!normalized) {
+      localStorage.removeItem(TENANT_CODE_KEY);
+      return "";
+    }
+    localStorage.setItem(TENANT_CODE_KEY, normalized);
+    if (typeof window.setActiveTenantCode === "function") {
+      window.setActiveTenantCode(normalized);
+    }
+    return normalized;
+  }
 
   function updateApiStatus() {
     if (!apiStatus) return;
@@ -67,40 +98,55 @@
       localStorage.setItem("API_ENABLED", "true");
       updateApiStatus();
       showToast("API OK");
-    } catch (e) {
+    } catch (_error) {
       localStorage.setItem("API_ENABLED", "false");
       updateApiStatus();
       showToast("API no disponible");
     }
   }
 
+  async function preloadBranding(tenantCode) {
+    if (!tenantCode || typeof window.loadTenantBrandingByCode !== "function") {
+      return;
+    }
+    try {
+      await window.loadTenantBrandingByCode(tenantCode, { silent: true });
+    } catch {
+      // no bloquea login si falla branding
+    }
+  }
+
   async function doLogin() {
+    const tenantCode = getActiveTenantCode();
     const u = (userEl?.value || "").trim();
     const p = (passEl?.value || "").trim();
 
-    if (!u || !p) {
+    if (!tenantCode || !u || !p) {
       setError(true);
+      showToast("Ingresa codigo de negocio, usuario y contrasena");
       return;
     }
 
     try {
+      setActiveTenantCode(tenantCode);
+      await preloadBranding(tenantCode);
       localStorage.setItem("API_ENABLED", "true");
-      const data = await apiLogin(u, p);
+      const data = await apiLogin(u, p, tenantCode);
       if (!data?.token) throw new Error("Sin token");
 
       localStorage.setItem(TOKEN_KEY, data.token);
       localStorage.setItem(USER_KEY, JSON.stringify(data.user || {}));
       localStorage.setItem(ADMIN_FLAG, "true");
       localStorage.setItem(SESSION_KEY, String(Date.now()));
-      showToast("✅ Acceso concedido");
+      showToast("Acceso concedido");
       window.location.href = "admin.html";
-    } catch (e) {
+    } catch (_error) {
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(USER_KEY);
       localStorage.removeItem(ADMIN_FLAG);
       localStorage.removeItem(SESSION_KEY);
       setError(true);
-      showToast("❌ Credenciales incorrectas o API no disponible");
+      showToast("Credenciales incorrectas, codigo invalido o API no disponible");
     }
   }
 
@@ -109,15 +155,30 @@
     errEl.style.display = show ? "block" : "none";
   }
 
-  // Enter para enviar
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") doLogin();
+    if (e.key === "Enter") void doLogin();
   });
 
-  btnEl?.addEventListener("click", doLogin);
+  btnEl?.addEventListener("click", () => {
+    void doLogin();
+  });
   apiBtn?.addEventListener("click", configureApi);
-  apiSyncBtn?.addEventListener("click", syncApi);
+  apiSyncBtn?.addEventListener("click", () => {
+    void syncApi();
+  });
   updateApiStatus();
+
+  if (tenantEl) {
+    const storedCode = getActiveTenantCode();
+    if (storedCode) {
+      tenantEl.value = storedCode;
+    }
+    tenantEl.addEventListener("blur", () => {
+      const code = setActiveTenantCode(tenantEl.value);
+      if (!code) return;
+      void preloadBranding(code);
+    });
+  }
 
   if (togglePass && passEl) {
     togglePass.addEventListener("click", () => {
@@ -125,11 +186,13 @@
       passEl.type = showing ? "password" : "text";
       togglePass.classList.toggle("is-open", !showing);
       togglePass.setAttribute("aria-pressed", String(!showing));
-      togglePass.setAttribute("aria-label", showing ? "Mostrar contraseña" : "Ocultar contraseña");
+      togglePass.setAttribute(
+        "aria-label",
+        showing ? "Mostrar contrasena" : "Ocultar contrasena"
+      );
     });
   }
 
-  // Si ya está logueado y la sesión sigue viva, redirige
   (function checkSession() {
     if (localStorage.getItem(ADMIN_FLAG) !== "true") return;
     const ts = Number(localStorage.getItem(SESSION_KEY) || 0);
@@ -144,4 +207,3 @@
     window.location.href = "admin.html";
   })();
 })();
-

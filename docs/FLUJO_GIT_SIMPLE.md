@@ -1,4 +1,4 @@
-﻿# Flujo Git Simple (Tienda + App + Backend)
+# Flujo Git Simple (Tienda + App + Backend)
 
 ## 1) Estado actual del proyecto
 - Repositorio unico: `wisand-core` (monorepo).
@@ -9,7 +9,7 @@
 
 ## 2) Flujo recomendado para cada cambio
 ```powershell
-cd "c:\Users\Wilfer Duero\Desktop\wisand-core"
+cd "C:\Users\Wilfer Duero\Desktop\WISAND\wisand-core"
 git checkout main
 git pull origin main
 git checkout -b <tipo>/<modulo>-<resumen-corto>

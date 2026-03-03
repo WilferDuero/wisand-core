@@ -13,6 +13,13 @@ const usePostgres = !!process.env.DATABASE_URL;
 const DEFAULT_TENANT_ID = 1;
 const DEFAULT_TENANT_NAME = "Default Tenant";
 const DEFAULT_TENANT_CODE = "default";
+const DEFAULT_BRANDING = Object.freeze({
+  display_name: "WISAND",
+  logo_url: "",
+  primary_color: "#0b63d0",
+  secondary_color: "#0f172a",
+  accent_color: "#ff7a18",
+});
 
 function replacePlaceholders(sql) {
   let i = 0;
@@ -89,10 +96,27 @@ async function applySqliteMultiTenantMigration(db) {
       code TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS tenant_branding (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL UNIQUE,
+      display_name TEXT NOT NULL DEFAULT 'WISAND',
+      logo_url TEXT,
+      primary_color TEXT NOT NULL DEFAULT '#0b63d0',
+      secondary_color TEXT NOT NULL DEFAULT '#0f172a',
+      accent_color TEXT NOT NULL DEFAULT '#ff7a18',
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   const alterStatements = [
     "ALTER TABLE tenants ADD COLUMN code TEXT;",
+    "ALTER TABLE tenant_branding ADD COLUMN display_name TEXT NOT NULL DEFAULT 'WISAND';",
+    "ALTER TABLE tenant_branding ADD COLUMN logo_url TEXT;",
+    "ALTER TABLE tenant_branding ADD COLUMN primary_color TEXT NOT NULL DEFAULT '#0b63d0';",
+    "ALTER TABLE tenant_branding ADD COLUMN secondary_color TEXT NOT NULL DEFAULT '#0f172a';",
+    "ALTER TABLE tenant_branding ADD COLUMN accent_color TEXT NOT NULL DEFAULT '#ff7a18';",
+    "ALTER TABLE tenant_branding ADD COLUMN updated_at TEXT DEFAULT CURRENT_TIMESTAMP;",
     "ALTER TABLE products ADD COLUMN externalId TEXT;",
     "ALTER TABLE orders ADD COLUMN externalId TEXT;",
     "ALTER TABLE users ADD COLUMN tenant_id INTEGER NOT NULL DEFAULT 1;",
@@ -119,6 +143,29 @@ async function applySqliteMultiTenantMigration(db) {
     DEFAULT_TENANT_CODE,
     DEFAULT_TENANT_ID,
   ]);
+  await db.exec(`
+    INSERT INTO tenant_branding (
+      tenant_id,
+      display_name,
+      logo_url,
+      primary_color,
+      secondary_color,
+      accent_color,
+      updated_at
+    )
+    SELECT
+      t.id,
+      COALESCE(NULLIF(TRIM(t.name), ''), '${DEFAULT_BRANDING.display_name}'),
+      '${DEFAULT_BRANDING.logo_url}',
+      '${DEFAULT_BRANDING.primary_color}',
+      '${DEFAULT_BRANDING.secondary_color}',
+      '${DEFAULT_BRANDING.accent_color}',
+      CURRENT_TIMESTAMP
+    FROM tenants t
+    WHERE NOT EXISTS (
+      SELECT 1 FROM tenant_branding b WHERE b.tenant_id = t.id
+    );
+  `);
 
   const backfillTenantStatements = [
     "UPDATE users SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0;",
@@ -140,6 +187,7 @@ async function applySqliteMultiTenantMigration(db) {
     "DROP INDEX IF EXISTS idx_push_tokens_role_active;",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username);",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_code ON tenants(code) WHERE code IS NOT NULL AND code <> '';",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_tenant_branding_tenant_id ON tenant_branding(tenant_id);",
     "CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users(tenant_id);",
     "CREATE INDEX IF NOT EXISTS idx_products_tenant_id ON products(tenant_id);",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_tenant_externalId ON orders(tenant_id, externalId) WHERE externalId IS NOT NULL;",
@@ -168,7 +216,25 @@ async function applyPostgresMultiTenantMigration(pool) {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     `,
+    `
+    CREATE TABLE IF NOT EXISTS tenant_branding (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT NOT NULL UNIQUE,
+      display_name TEXT NOT NULL DEFAULT 'WISAND',
+      logo_url TEXT,
+      primary_color TEXT NOT NULL DEFAULT '#0b63d0',
+      secondary_color TEXT NOT NULL DEFAULT '#0f172a',
+      accent_color TEXT NOT NULL DEFAULT '#ff7a18',
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    `,
     "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS code TEXT;",
+    "ALTER TABLE tenant_branding ADD COLUMN IF NOT EXISTS display_name TEXT NOT NULL DEFAULT 'WISAND';",
+    "ALTER TABLE tenant_branding ADD COLUMN IF NOT EXISTS logo_url TEXT;",
+    "ALTER TABLE tenant_branding ADD COLUMN IF NOT EXISTS primary_color TEXT NOT NULL DEFAULT '#0b63d0';",
+    "ALTER TABLE tenant_branding ADD COLUMN IF NOT EXISTS secondary_color TEXT NOT NULL DEFAULT '#0f172a';",
+    "ALTER TABLE tenant_branding ADD COLUMN IF NOT EXISTS accent_color TEXT NOT NULL DEFAULT '#ff7a18';",
+    "ALTER TABLE tenant_branding ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS externalId TEXT;",
     "ALTER TABLE orders ADD COLUMN IF NOT EXISTS externalId TEXT;",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id BIGINT;",
@@ -181,6 +247,28 @@ async function applyPostgresMultiTenantMigration(pool) {
     "ALTER TABLE push_tokens ADD COLUMN IF NOT EXISTS userId BIGINT;",
     "INSERT INTO tenants (id, name, code) VALUES (1, 'Default Tenant', 'default') ON CONFLICT (id) DO NOTHING;",
     "UPDATE tenants SET name = 'Default Tenant', code = 'default' WHERE id = 1;",
+    `
+    INSERT INTO tenant_branding (
+      tenant_id,
+      display_name,
+      logo_url,
+      primary_color,
+      secondary_color,
+      accent_color,
+      updated_at
+    )
+    SELECT
+      t.id,
+      COALESCE(NULLIF(BTRIM(t.name), ''), 'WISAND'),
+      '',
+      '#0b63d0',
+      '#0f172a',
+      '#ff7a18',
+      CURRENT_TIMESTAMP
+    FROM tenants t
+    LEFT JOIN tenant_branding b ON b.tenant_id = t.id
+    WHERE b.tenant_id IS NULL;
+    `,
     "UPDATE users SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0;",
     "UPDATE products SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0;",
     "UPDATE orders SET tenant_id = 1 WHERE tenant_id IS NULL OR tenant_id = 0;",
@@ -204,6 +292,7 @@ async function applyPostgresMultiTenantMigration(pool) {
     "DROP INDEX IF EXISTS idx_push_tokens_role_active;",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username);",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_code ON tenants(code) WHERE code IS NOT NULL AND code <> '';",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_tenant_branding_tenant_id ON tenant_branding(tenant_id);",
     "CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users(tenant_id);",
     "CREATE INDEX IF NOT EXISTS idx_products_tenant_id ON products(tenant_id);",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_tenant_externalId ON orders(tenant_id, externalId) WHERE externalId IS NOT NULL;",
@@ -303,6 +392,17 @@ async function initSqlite() {
       name TEXT NOT NULL,
       code TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS tenant_branding (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL UNIQUE,
+      display_name TEXT NOT NULL DEFAULT 'WISAND',
+      logo_url TEXT,
+      primary_color TEXT NOT NULL DEFAULT '#0b63d0',
+      secondary_color TEXT NOT NULL DEFAULT '#0f172a',
+      accent_color TEXT NOT NULL DEFAULT '#ff7a18',
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS products (
@@ -413,6 +513,18 @@ async function initPostgres() {
       name TEXT NOT NULL,
       code TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    `,
+    `
+    CREATE TABLE IF NOT EXISTS tenant_branding (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT NOT NULL UNIQUE,
+      display_name TEXT NOT NULL DEFAULT 'WISAND',
+      logo_url TEXT,
+      primary_color TEXT NOT NULL DEFAULT '#0b63d0',
+      secondary_color TEXT NOT NULL DEFAULT '#0f172a',
+      accent_color TEXT NOT NULL DEFAULT '#ff7a18',
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     `,
     `
@@ -551,5 +663,6 @@ module.exports = {
   DEFAULT_TENANT_ID,
   DEFAULT_TENANT_NAME,
   DEFAULT_TENANT_CODE,
+  DEFAULT_BRANDING,
   normalizeTenantCode,
 };

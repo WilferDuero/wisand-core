@@ -10,7 +10,12 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const https = require("https");
 const crypto = require("crypto");
-const { dbPromise, DEFAULT_TENANT_ID, normalizeTenantCode } = require("./db");
+const {
+  dbPromise,
+  DEFAULT_TENANT_ID,
+  DEFAULT_BRANDING,
+  normalizeTenantCode,
+} = require("./db");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -83,6 +88,22 @@ app.use(
   })
 );
 app.use(express.json({ limit: "1mb" }));
+app.use(async (req, _res, next) => {
+  const requestedCode = pickTenantCode(req);
+  if (!requestedCode) {
+    return next();
+  }
+  try {
+    const db = await dbPromise;
+    const tenant = await db.get("SELECT id FROM tenants WHERE code = ?", [requestedCode]);
+    if (tenant?.id) {
+      req.resolvedTenantId = toTenantId(tenant.id, 0);
+    }
+  } catch (error) {
+    console.warn("[tenant] resolve code failed", error?.message || error);
+  }
+  return next();
+});
 
 const toNumber = (v, fallback = 0) => {
   const n = Number(v);
@@ -120,6 +141,7 @@ const toTenantId = (value, fallback = 0) => {
 };
 
 const pickTenantId = (req) => {
+  const resolvedTenant = toTenantId(req.resolvedTenantId, 0);
   const headerTenant = toTenantId(req.headers?.["x-tenant-id"], 0);
   const queryTenant = toTenantId(
     pick(req.query, "tenant_id", "tenantId", "tenant"),
@@ -129,7 +151,7 @@ const pickTenantId = (req) => {
     pick(req.body, "tenant_id", "tenantId", "tenant"),
     0
   );
-  return headerTenant || queryTenant || bodyTenant || DEFAULT_TENANT_ID;
+  return resolvedTenant || headerTenant || queryTenant || bodyTenant || DEFAULT_TENANT_ID;
 };
 
 const pickRawTenantCode = (req) => {
@@ -202,6 +224,87 @@ const pick = (obj, ...keys) => {
     if (v !== undefined && v !== null) return v;
   }
   return undefined;
+};
+
+const BRAND_HEX_COLOR_RE = /^#([0-9a-f]{6})$/i;
+const BRAND_DISPLAY_NAME_MAX = 80;
+const BRAND_LOGO_URL_MAX = 512;
+
+const normalizeBrandingDisplayName = (value, fallback = DEFAULT_BRANDING.display_name) => {
+  const normalized = String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, BRAND_DISPLAY_NAME_MAX);
+  if (normalized) return normalized;
+  const safeFallback = String(fallback || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, BRAND_DISPLAY_NAME_MAX);
+  return safeFallback || DEFAULT_BRANDING.display_name;
+};
+
+const normalizeBrandingColor = (value, fallback) => {
+  const raw = String(value || "").trim();
+  if (!raw) return String(fallback || "").toLowerCase();
+  if (!BRAND_HEX_COLOR_RE.test(raw)) return null;
+  return raw.toLowerCase();
+};
+
+const normalizeBrandingLogoUrl = (value, options = {}) => {
+  const allowEmpty = options.allowEmpty !== false;
+  const fallback = options.fallback ?? DEFAULT_BRANDING.logo_url;
+  const raw = String(value ?? "").trim();
+  if (!raw) {
+    return allowEmpty ? "" : String(fallback || "");
+  }
+  if (raw.length > BRAND_LOGO_URL_MAX) return null;
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
+    }
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+};
+
+const buildDefaultBranding = (tenantCode = "", tenantName = "") => ({
+  tenant_code: normalizeTenantCode(tenantCode) || "default",
+  display_name: normalizeBrandingDisplayName("", DEFAULT_BRANDING.display_name),
+  logo_url: DEFAULT_BRANDING.logo_url,
+  primary_color: DEFAULT_BRANDING.primary_color,
+  secondary_color: DEFAULT_BRANDING.secondary_color,
+  accent_color: DEFAULT_BRANDING.accent_color,
+  updated_at: null,
+});
+
+const mapBrandingRow = (row, tenantCode = "", tenantName = "") => {
+  const fallback = buildDefaultBranding(tenantCode, tenantName);
+  return {
+    tenant_code: fallback.tenant_code,
+    display_name: normalizeBrandingDisplayName(
+      pick(row, "display_name", "displayName"),
+      fallback.display_name
+    ),
+    logo_url:
+      normalizeBrandingLogoUrl(pick(row, "logo_url", "logoUrl"), {
+        allowEmpty: true,
+        fallback: fallback.logo_url,
+      }) ?? fallback.logo_url,
+    primary_color:
+      normalizeBrandingColor(pick(row, "primary_color", "primaryColor"), fallback.primary_color) ||
+      fallback.primary_color,
+    secondary_color:
+      normalizeBrandingColor(
+        pick(row, "secondary_color", "secondaryColor"),
+        fallback.secondary_color
+      ) || fallback.secondary_color,
+    accent_color:
+      normalizeBrandingColor(pick(row, "accent_color", "accentColor"), fallback.accent_color) ||
+      fallback.accent_color,
+    updated_at: pick(row, "updated_at", "updatedAt") || fallback.updated_at,
+  };
 };
 
 function normalizeProductRow(r) {
@@ -661,6 +764,144 @@ app.get("/auth/me", authRequired, async (req, res) => {
   res.json(user);
 });
 
+app.get("/tenants/:code/branding", async (req, res) => {
+  const requestedCode = normalizeTenantCode(req.params?.code || "");
+  if (!requestedCode) {
+    return res.json(buildDefaultBranding());
+  }
+
+  const db = await dbPromise;
+  const tenant = await db.get("SELECT id, code, name FROM tenants WHERE code = ?", [requestedCode]);
+  if (!tenant?.id) {
+    return res.json(buildDefaultBranding(requestedCode));
+  }
+
+  const brandingRow = await db.get(
+    `
+    SELECT tenant_id, display_name, logo_url, primary_color, secondary_color, accent_color, updated_at
+    FROM tenant_branding
+    WHERE tenant_id = ?
+  `,
+    [tenant.id]
+  );
+
+  return res.json(mapBrandingRow(brandingRow, tenant.code || requestedCode, tenant.name || ""));
+});
+
+app.put("/branding", authRequired, ownerOnly, async (req, res) => {
+  const body = req.body || {};
+  const hasDisplayName =
+    Object.prototype.hasOwnProperty.call(body, "display_name") ||
+    Object.prototype.hasOwnProperty.call(body, "displayName") ||
+    Object.prototype.hasOwnProperty.call(body, "name");
+  const hasLogoUrl =
+    Object.prototype.hasOwnProperty.call(body, "logo_url") ||
+    Object.prototype.hasOwnProperty.call(body, "logoUrl");
+  const hasPrimary =
+    Object.prototype.hasOwnProperty.call(body, "primary_color") ||
+    Object.prototype.hasOwnProperty.call(body, "primaryColor");
+  const hasSecondary =
+    Object.prototype.hasOwnProperty.call(body, "secondary_color") ||
+    Object.prototype.hasOwnProperty.call(body, "secondaryColor");
+  const hasAccent =
+    Object.prototype.hasOwnProperty.call(body, "accent_color") ||
+    Object.prototype.hasOwnProperty.call(body, "accentColor");
+
+  if (!hasDisplayName && !hasLogoUrl && !hasPrimary && !hasSecondary && !hasAccent) {
+    return res.status(400).json({ error: "No hay campos de branding para actualizar" });
+  }
+
+  const db = await dbPromise;
+  const tenant = await db.get("SELECT id, code, name FROM tenants WHERE id = ?", [req.user.tenant_id]);
+  if (!tenant?.id) {
+    return res.status(404).json({ error: "Tenant no encontrado" });
+  }
+
+  const existingRow = await db.get(
+    `
+    SELECT tenant_id, display_name, logo_url, primary_color, secondary_color, accent_color, updated_at
+    FROM tenant_branding
+    WHERE tenant_id = ?
+  `,
+    [tenant.id]
+  );
+
+  const current = mapBrandingRow(existingRow, tenant.code || "", tenant.name || "");
+
+  const nextDisplayName = hasDisplayName
+    ? normalizeBrandingDisplayName(
+        pick(body, "display_name", "displayName", "name"),
+        tenant.name || current.display_name
+      )
+    : current.display_name;
+
+  const nextLogoUrl = hasLogoUrl
+    ? normalizeBrandingLogoUrl(pick(body, "logo_url", "logoUrl"), {
+        allowEmpty: true,
+        fallback: current.logo_url,
+      })
+    : current.logo_url;
+  if (nextLogoUrl === null) {
+    return res.status(400).json({ error: "logo_url inválido" });
+  }
+
+  const nextPrimary = hasPrimary
+    ? normalizeBrandingColor(pick(body, "primary_color", "primaryColor"), current.primary_color)
+    : current.primary_color;
+  if (nextPrimary === null) {
+    return res.status(400).json({ error: "primary_color inválido. Usa formato #RRGGBB" });
+  }
+
+  const nextSecondary = hasSecondary
+    ? normalizeBrandingColor(
+        pick(body, "secondary_color", "secondaryColor"),
+        current.secondary_color
+      )
+    : current.secondary_color;
+  if (nextSecondary === null) {
+    return res.status(400).json({ error: "secondary_color inválido. Usa formato #RRGGBB" });
+  }
+
+  const nextAccent = hasAccent
+    ? normalizeBrandingColor(pick(body, "accent_color", "accentColor"), current.accent_color)
+    : current.accent_color;
+  if (nextAccent === null) {
+    return res.status(400).json({ error: "accent_color inválido. Usa formato #RRGGBB" });
+  }
+
+  if (existingRow?.tenant_id) {
+    await db.run(
+      `
+      UPDATE tenant_branding
+      SET display_name = ?, logo_url = ?, primary_color = ?, secondary_color = ?, accent_color = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE tenant_id = ?
+    `,
+      [nextDisplayName, nextLogoUrl, nextPrimary, nextSecondary, nextAccent, tenant.id]
+    );
+  } else {
+    await db.run(
+      `
+      INSERT INTO tenant_branding (
+        tenant_id, display_name, logo_url, primary_color, secondary_color, accent_color, updated_at
+      )
+      VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP)
+    `,
+      [tenant.id, nextDisplayName, nextLogoUrl, nextPrimary, nextSecondary, nextAccent]
+    );
+  }
+
+  const updatedRow = await db.get(
+    `
+    SELECT tenant_id, display_name, logo_url, primary_color, secondary_color, accent_color, updated_at
+    FROM tenant_branding
+    WHERE tenant_id = ?
+  `,
+    [tenant.id]
+  );
+
+  return res.json(mapBrandingRow(updatedRow, tenant.code || "", tenant.name || ""));
+});
+
 app.post("/internal/tenants", masterKeyRequired, async (req, res) => {
   const tenantName = String(pick(req.body, "name", "tenantName") || "").trim();
   const tenantCodeRaw = String(
@@ -721,6 +962,22 @@ app.post("/internal/tenants", masterKeyRequired, async (req, res) => {
       "INSERT INTO users (tenant_id, username, passwordHash, role) VALUES (?,?,?,?)",
       [tenantId, ownerUsername, hash, ownerRole]
     );
+    await db.run(
+      `
+      INSERT INTO tenant_branding (
+        tenant_id, display_name, logo_url, primary_color, secondary_color, accent_color, updated_at
+      )
+      VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP)
+    `,
+      [
+        tenantId,
+        normalizeBrandingDisplayName(tenantName, tenantName),
+        DEFAULT_BRANDING.logo_url,
+        DEFAULT_BRANDING.primary_color,
+        DEFAULT_BRANDING.secondary_color,
+        DEFAULT_BRANDING.accent_color,
+      ]
+    );
     return res.status(201).json({
       tenant: {
         id: tenantId,
@@ -733,8 +990,22 @@ app.post("/internal/tenants", masterKeyRequired, async (req, res) => {
         username: ownerUsername,
         role: ownerRole,
       },
+      branding: mapBrandingRow(
+        {
+          display_name: tenantName,
+          logo_url: DEFAULT_BRANDING.logo_url,
+          primary_color: DEFAULT_BRANDING.primary_color,
+          secondary_color: DEFAULT_BRANDING.secondary_color,
+          accent_color: DEFAULT_BRANDING.accent_color,
+          updated_at: new Date().toISOString(),
+        },
+        tenantCode,
+        tenantName
+      ),
     });
   } catch (error) {
+    await db.run("DELETE FROM users WHERE tenant_id = ?", [tenantId]);
+    await db.run("DELETE FROM tenant_branding WHERE tenant_id = ?", [tenantId]);
     await db.run("DELETE FROM tenants WHERE id = ?", [tenantId]);
     if (/unique/i.test(String(error?.message || ""))) {
       return res.status(409).json({ error: "ownerUsername ya existe" });

@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useMemo } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -10,7 +10,8 @@ import {
   ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { theme } from "../constants/theme";
+import { AppTheme } from "../constants/theme";
+import { useBrandTheme } from "../providers/BrandingProvider";
 
 interface ScreenContainerProps {
   children: ReactNode;
@@ -27,6 +28,9 @@ export const ScreenContainer = ({
   refreshing = false,
   onRefresh,
 }: ScreenContainerProps) => {
+  const theme = useBrandTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
   const body = scrollable ? (
     <ScrollView
       keyboardShouldPersistTaps="handled"
@@ -61,17 +65,18 @@ export const ScreenContainer = ({
   );
 };
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  flex: {
-    flex: 1,
-  },
-  content: {
-    padding: 14,
-    gap: 12,
-  },
-});
+const createStyles = (theme: AppTheme) =>
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    flex: {
+      flex: 1,
+    },
+    content: {
+      padding: 14,
+      gap: 12,
+    },
+  });
 

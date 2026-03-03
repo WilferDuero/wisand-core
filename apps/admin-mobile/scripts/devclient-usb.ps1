@@ -1,5 +1,6 @@
 param(
-  [int]$Port = 8081
+  [int]$Port = 8081,
+  [int]$ApiPort = 3001
 )
 
 $ErrorActionPreference = "Stop"
@@ -47,6 +48,7 @@ if (-not $connectedDevices) {
 
 & $adb reverse --remove-all | Out-Null
 & $adb reverse "tcp:$Port" "tcp:$Port" | Out-Null
-Write-Host "ADB reverse listo en tcp:$Port."
+& $adb reverse "tcp:$ApiPort" "tcp:$ApiPort" | Out-Null
+Write-Host "ADB reverse listo en tcp:$Port (Metro) y tcp:$ApiPort (API)."
 
 npx expo start --dev-client --host localhost --port $Port -c

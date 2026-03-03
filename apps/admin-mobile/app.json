@@ -1,9 +1,9 @@
 ﻿{
   "expo": {
-    "name": "WISAND Admin",
-    "slug": "wisand-admin",
+    "name": "WISAND",
+    "slug": "wisand",
     "version": "1.0.0",
-    "scheme": "wisand-admin",
+    "scheme": "wisand",
     "orientation": "portrait",
     "icon": "./assets/brand/wisand_icon.png",
     "primaryColor": "#21808d",
@@ -15,11 +15,11 @@
       "backgroundColor": "#FFFFFF"
     },
     "ios": {
-      "bundleIdentifier": "com.wisand.adminmobile",
+      "bundleIdentifier": "com.wisand.app",
       "supportsTablet": true
     },
     "android": {
-      "package": "com.wisand.adminmobile",
+      "package": "com.wisand.app",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/brand/wisand_icon.png",

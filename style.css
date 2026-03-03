@@ -5,6 +5,9 @@
 :root {
   --color-white: rgba(255, 255, 255, 1);
   --color-black: rgba(0, 0, 0, 1);
+  --brand-primary: #0b63d0;
+  --brand-secondary: #0f172a;
+  --brand-accent: #ff7a18;
   --color-cream-50: rgba(252, 252, 249, 1);
   --color-cream-100: rgba(255, 255, 253, 1);
   --color-gray-200: rgba(245, 245, 245, 1);
@@ -48,9 +51,9 @@
   --color-surface: var(--color-cream-100);
   --color-text: var(--color-slate-900);
   --color-text-secondary: var(--color-slate-500);
-  --color-primary: var(--color-teal-500);
-  --color-primary-hover: var(--color-teal-600);
-  --color-primary-active: var(--color-teal-700);
+  --color-primary: var(--brand-primary);
+  --color-primary-hover: var(--brand-primary);
+  --color-primary-active: var(--brand-primary);
   --color-secondary: rgba(var(--color-brown-600-rgb), 0.12);
   --color-secondary-hover: rgba(var(--color-brown-600-rgb), 0.2);
   --color-secondary-active: rgba(var(--color-brown-600-rgb), 0.25);
@@ -202,7 +205,7 @@ h4 { font-size: var(--font-size-xl); }
   justify-content: space-between;
   gap: var(--space-12);
   padding: var(--space-12) var(--space-16);
-  background: linear-gradient(90deg, #0b63d0, #ff7a18);
+  background: linear-gradient(90deg, var(--brand-primary), var(--brand-accent));
   color: var(--color-white);
   position: sticky;
   top: 0;

@@ -1,4 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   BottomTabNavigationProp,
   createBottomTabNavigator,
@@ -9,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { listOrders } from "../api/modules/orders";
 import { ENV } from "../config/env";
-import { theme } from "../constants/theme";
+import { AppTheme } from "../constants/theme";
 import { LoginScreen } from "../features/auth/LoginScreen";
 import { DashboardScreen } from "../features/dashboard/DashboardScreen";
 import { OrdersScreen } from "../features/orders/OrdersScreen";
@@ -18,6 +19,7 @@ import { ReviewsScreen } from "../features/reviews/ReviewsScreen";
 import { SalesScreen } from "../features/sales/SalesScreen";
 import { UsersScreen } from "../features/users/UsersScreen";
 import { formatDateTime } from "../lib/format";
+import { useBrandTheme } from "../providers/BrandingProvider";
 import { getActivePushToken } from "../lib/push-session";
 import { useAuthStore } from "../store/auth-store";
 import { InAppAlert, useSyncStore } from "../store/sync-store";
@@ -47,6 +49,8 @@ const getAlertDestinationTab = (alert: InAppAlert): keyof AdminTabParamList | nu
 };
 
 const HeaderActions = () => {
+  const theme = useBrandTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const navigation = useNavigation<BottomTabNavigationProp<AdminTabParamList>>();
   const logout = useAuthStore((state) => state.logout);
   const triggerSync = useSyncStore((state) => state.triggerSync);
@@ -175,6 +179,8 @@ const HeaderActions = () => {
 };
 
 const AdminTabs = () => {
+  const theme = useBrandTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const user = useAuthStore((state) => state.user);
   const syncTick = useSyncStore((state) => state.syncTick);
   const pushInAppAlert = useSyncStore((state) => state.pushInAppAlert);
@@ -214,7 +220,15 @@ const AdminTabs = () => {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        headerStyle: { backgroundColor: theme.colors.gradientStart },
+        headerStyle: { backgroundColor: "transparent" },
+        headerBackground: () => (
+          <LinearGradient
+            colors={[theme.colors.gradientStart, theme.colors.gradientEnd]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.headerGradient}
+          />
+        ),
         headerTintColor: theme.colors.white,
         headerTitleStyle: { fontWeight: "800" },
         headerRight: HeaderActions,
@@ -290,7 +304,8 @@ export const AppNavigator = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: AppTheme) =>
+  StyleSheet.create({
   tabIconWrap: {
     minWidth: 24,
     alignItems: "center",
@@ -314,6 +329,9 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontSize: 9,
     fontWeight: "900",
+  },
+  headerGradient: {
+    flex: 1,
   },
   headerActions: {
     flexDirection: "row",
@@ -503,4 +521,4 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
     fontSize: 13,
   },
-});
+  });

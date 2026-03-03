@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,20 +14,28 @@ import { StatusBar } from "expo-status-bar";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 import { usePushNotifications } from "./src/features/notifications/usePushNotifications";
 import { useAuthStore } from "./src/store/auth-store";
-import { theme } from "./src/constants/theme";
 import { ENV } from "./src/config/env";
+import { AppTheme } from "./src/constants/theme";
+import { BrandingProvider, useBrandTheme, useBranding } from "./src/providers/BrandingProvider";
 
-export default function App() {
+const AppContent = () => {
   const bootstrap = useAuthStore((state) => state.bootstrap);
   const logout = useAuthStore((state) => state.logout);
   const status = useAuthStore((state) => state.status);
   const isBootstrapping = useAuthStore((state) => state.isBootstrapping);
+  const { hydrateFromCache } = useBranding();
+  const theme = useBrandTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const backgroundAtRef = useRef<number | null>(null);
   usePushNotifications();
 
   useEffect(() => {
     void bootstrap();
   }, [bootstrap]);
+
+  useEffect(() => {
+    void hydrateFromCache();
+  }, [hydrateFromCache]);
 
   useEffect(() => {
     const onAppStateChange = (nextState: AppStateStatus) => {
@@ -59,21 +67,27 @@ export default function App() {
 
   if (isBootstrapping || status === "checking") {
     return (
-      <GestureHandlerRootView style={styles.flex}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator color={theme.colors.primary} size="large" />
-          <Text style={styles.loadingText}>Cargando panel admin...</Text>
-        </View>
-      </GestureHandlerRootView>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator color={theme.colors.primary} size="large" />
+        <Text style={styles.loadingText}>Cargando panel admin...</Text>
+      </View>
     );
   }
 
   return (
+    <NavigationContainer>
+      <StatusBar style="dark" />
+      <AppNavigator />
+    </NavigationContainer>
+  );
+};
+
+export default function App() {
+  return (
     <GestureHandlerRootView style={styles.flex}>
-      <NavigationContainer>
-        <StatusBar style="light" />
-        <AppNavigator />
-      </NavigationContainer>
+      <BrandingProvider>
+        <AppContent />
+      </BrandingProvider>
     </GestureHandlerRootView>
   );
 }
@@ -82,16 +96,20 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 12,
-  },
-  loadingText: {
-    color: theme.colors.text,
-    fontSize: 16,
-    fontWeight: "600",
-  },
 });
+
+const createStyles = (theme: AppTheme) =>
+  StyleSheet.create({
+    loadingContainer: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+      justifyContent: "center",
+      alignItems: "center",
+      gap: 12,
+    },
+    loadingText: {
+      color: theme.colors.text,
+      fontSize: 16,
+      fontWeight: "600",
+    },
+  });

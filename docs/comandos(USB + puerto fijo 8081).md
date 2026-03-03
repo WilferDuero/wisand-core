@@ -1,10 +1,10 @@
-﻿# =============================
+# =============================
 # WISAND - Admin Mobile
 # Comandos de trabajo (USB + puerto fijo 8081)
 # =============================
 
 # 0) Entrar al proyecto de la app mobile
-cd "c:\Users\Wilfer Duero\Desktop\wisand-core\apps\admin-mobile"
+cd "C:\Users\Wilfer Duero\Desktop\WISAND\wisand-core\apps\admin-mobile"
 
 # 1) Instalar/actualizar Dev Client en el telefono (solo cuando cambias algo nativo: splash, icon, plugins)
 # - Configura JAVA/ANDROID automaticamente
@@ -63,17 +63,17 @@ Get-NetTCPConnection -LocalPort 8081 -State Listen
 # =============================
 
 # 7) Login en EAS (solo 1 vez)
-cd "c:\Users\Wilfer Duero\Desktop\wisand-core\apps\admin-mobile"
+cd "C:\Users\Wilfer Duero\Desktop\WISAND\wisand-core\apps\admin-mobile"
 npx eas-cli@latest login
 
 # 8) Crear APK de prueba (perfil preview)
 # - Sube codigo y compila en la nube de Expo
 # - Al final te da un link para descargar el APK
-cd "c:\Users\Wilfer Duero\Desktop\wisand-core\apps\admin-mobile"
+cd "C:\Users\Wilfer Duero\Desktop\WISAND\wisand-core\apps\admin-mobile"
 npm run build:apk:preview
 
 # 9) Ver los ultimos builds Android
-cd "c:\Users\Wilfer Duero\Desktop\wisand-core\apps\admin-mobile"
+cd "C:\Users\Wilfer Duero\Desktop\WISAND\wisand-core\apps\admin-mobile"
 npm run build:list
 
 

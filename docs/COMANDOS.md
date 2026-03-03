@@ -13,14 +13,14 @@ psql --version
 Generar hash bcrypt:
 
 ```powershell
-cd C:\Users\Wilfer Duero\Desktop\wisand-core\server
+cd C:\Users\Wilfer Duero\Desktop\WISAND\wisand-core\server
 node -e "const b=require('bcryptjs'); b.hash('TU_CLAVE',10).then(h=>console.log(h))"
 ```
 
 Instalar dependencias backend:
 
 ```powershell
-cd C:\Users\Wilfer Duero\Desktop\wisand-core\server
+cd C:\Users\Wilfer Duero\Desktop\WISAND\wisand-core\server
 npm install
 ```
 
@@ -84,21 +84,21 @@ git push
 Levantar API:
 
 ```powershell
-cd C:\Users\Wilfer Duero\Desktop\wisand-core\server
+cd C:\Users\Wilfer Duero\Desktop\WISAND\wisand-core\server
 npm run dev
 ```
 
 Ejecutar migracion:
 
 ```powershell
-cd C:\Users\Wilfer Duero\Desktop\wisand-core\server
+cd C:\Users\Wilfer Duero\Desktop\WISAND\wisand-core\server
 npm run migrate
 ```
 
 Ejecutar prueba automatica multi-tenant:
 
 ```powershell
-cd C:\Users\Wilfer Duero\Desktop\wisand-core\server
+cd C:\Users\Wilfer Duero\Desktop\WISAND\wisand-core\server
 npm run test:multitenant
 ```
 

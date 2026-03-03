@@ -24,11 +24,11 @@
   <header class="site-header">
     <div style="display:flex;gap:12px;align-items:center">
       <div class="brand-logos">
-        <img src="assets/brand/wisand-logo.svg" alt="Logo WISAND" class="brand-logo brand-logo--main">
+        <img src="assets/brand/wisand-logo.svg" alt="Logo WISAND" class="brand-logo brand-logo--main" data-brand-logo>
         <img src="assets/payments/Logo_Coopidrogas.svg" alt="Logo Coopidrogas" class="brand-logo brand-logo--partner">
       </div>
       <div class="brand-text">
-        <h1>WISAND</h1>
+        <h1 data-brand-name>WISAND</h1>
         <div class="tagline">Tu salud es nuestra prioridad</div>
       </div>
     </div>
@@ -444,7 +444,7 @@
     <div class="footer-inner">
       <div class="footer-grid">
         <div class="footer-col">
-          <div class="footer-title">WISAND</div>
+          <div class="footer-title" data-brand-name>WISAND</div>
           <div class="footer-text">Calle 2A Este No. 7-04, Facatativá</div>
           <div class="footer-text">NIT: 35532466-9</div>
           <a class="footer-link" href="https://wa.me/573133585508" target="_blank">
@@ -467,7 +467,7 @@
       </div>
 
       <div class="footer-bottom">
-        <div>© 2026 WISAND</div>
+        <div>© 2026 <span data-brand-name>WISAND</span></div>
         <div class="legal-note">La información presentada no sustituye la consulta médica profesional.</div>
         <div class="footer-brand">
           <span>Desarrollado por <strong>WISAND — Wilfer Duero</strong></span>
@@ -480,8 +480,9 @@
   </footer>
 
   <!-- ✅ JS con defer y orden correcto -->
-  <script defer src="js/core.js?v=20260211b"></script>
-  <script defer src="js/store.js?v=20260211b"></script>
+  <script defer src="js/branding.js?v=20260303a"></script>
+  <script defer src="js/core.js?v=20260303a"></script>
+  <script defer src="js/store.js?v=20260303a"></script>
 </body>
 </html>
 

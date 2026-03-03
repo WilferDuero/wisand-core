@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:000000000000:android:placeholderdev",
         "android_client_info": {
-          "package_name": "com.wisand.adminmobile.dev"
+          "package_name": "com.wisand.app.dev"
         }
       },
       "oauth_client": [],
@@ -28,7 +28,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:000000000000:android:placeholderprod",
         "android_client_info": {
-          "package_name": "com.wisand.adminmobile"
+          "package_name": "com.wisand.app"
         }
       },
       "oauth_client": [],

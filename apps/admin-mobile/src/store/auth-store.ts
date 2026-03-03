@@ -5,6 +5,7 @@ import { AuthUser } from "../types/domain";
 import { getActivePushToken, setActivePushToken } from "../lib/push-session";
 import { tokenStorage } from "../lib/token-storage";
 import { setAuthTokenResolver, setUnauthorizedHandler } from "../api/client";
+import { useBrandingStore } from "./branding-store";
 
 type AuthStatus = "checking" | "authenticated" | "unauthenticated";
 
@@ -85,6 +86,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       setActivePushToken(null);
     }
     await tokenStorage.clear();
+    await useBrandingStore.getState().resetBranding();
     set({
       status: "unauthenticated",
       token: null,

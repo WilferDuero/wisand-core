@@ -1,5 +1,7 @@
+import { useMemo } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text } from "react-native";
-import { theme } from "../constants/theme";
+import { AppTheme } from "../constants/theme";
+import { useBrandTheme } from "../providers/BrandingProvider";
 
 type Variant = "primary" | "secondary" | "danger";
 
@@ -11,18 +13,6 @@ interface ActionButtonProps {
   loading?: boolean;
 }
 
-const backgroundByVariant: Record<Variant, string> = {
-  primary: theme.colors.primary,
-  secondary: "rgba(94,82,64,0.12)",
-  danger: theme.colors.danger,
-};
-
-const textByVariant: Record<Variant, string> = {
-  primary: theme.colors.white,
-  secondary: theme.colors.text,
-  danger: theme.colors.white,
-};
-
 export const ActionButton = ({
   label,
   onPress,
@@ -30,6 +20,19 @@ export const ActionButton = ({
   disabled = false,
   loading = false,
 }: ActionButtonProps) => {
+  const theme = useBrandTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const backgroundByVariant: Record<Variant, string> = {
+    primary: theme.colors.primary,
+    secondary: "rgba(94,82,64,0.12)",
+    danger: theme.colors.danger,
+  };
+
+  const textByVariant: Record<Variant, string> = {
+    primary: theme.colors.white,
+    secondary: theme.colors.text,
+    danger: theme.colors.white,
+  };
   const isDisabled = disabled || loading;
 
   return (
@@ -52,23 +55,24 @@ export const ActionButton = ({
   );
 };
 
-const styles = StyleSheet.create({
-  button: {
-    minHeight: 44,
-    borderRadius: theme.radius.sm,
-    paddingHorizontal: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  label: {
-    fontWeight: "700",
-    fontSize: 14,
-  },
-  pressed: {
-    opacity: 0.9,
-    transform: [{ scale: 0.99 }],
-  },
-  disabled: {
-    opacity: 0.55,
-  },
-});
+const createStyles = (theme: AppTheme) =>
+  StyleSheet.create({
+    button: {
+      minHeight: 44,
+      borderRadius: theme.radius.sm,
+      paddingHorizontal: 14,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    label: {
+      fontWeight: "700",
+      fontSize: 14,
+    },
+    pressed: {
+      opacity: 0.9,
+      transform: [{ scale: 0.99 }],
+    },
+    disabled: {
+      opacity: 0.55,
+    },
+  });
