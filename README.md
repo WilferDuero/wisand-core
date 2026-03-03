@@ -65,3 +65,7 @@ Este repositorio es el **core de producto WISAND**. Implementaciones anteriores 
 
 - Autor: Wilfer Duero
 - Licencia: ISC
+
+## Operacion Go Live
+
+- Checklist primer cliente: `docs/GO_LIVE_CHECKLIST.md`

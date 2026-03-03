@@ -126,3 +126,23 @@ console.log({
 - No subas secretos reales (`.env`, keys privadas).
 - Usa `TRUNCATE` solo si entiendes el impacto.
 - Mantener aislamiento por `tenant_id` en toda query nueva.
+
+## 7) Go Live y Alta de Clientes
+
+Chequeo pre-produccion:
+
+```powershell
+npm --prefix server run check:golive
+```
+
+Crear un negocio nuevo en 1 comando:
+
+```powershell
+npm --prefix server run tenant:create -- --name "Cliente X" --code "cliente-x" --owner "owner_x" --password "ClaveSegura123"
+```
+
+Crear negocio contra API remota:
+
+```powershell
+npm --prefix server run tenant:create -- --api "https://tu-api.com" --name "Cliente X" --code "cliente-x" --owner "owner_x" --password "ClaveSegura123"
+```

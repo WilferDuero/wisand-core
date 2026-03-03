@@ -1,0 +1,113 @@
+# GO LIVE Checklist (Primer Cliente)
+
+Checklist operativo para salir a produccion con `wisand-core` y dar de alta clientes sin tocar codigo.
+
+## 1) Seguridad minima (obligatorio)
+
+En `server/.env` de produccion:
+
+- `NODE_ENV=production`
+- `JWT_SECRET=<secret-largo-32+>`
+- `MASTER_KEY=<secret-largo-24+>`
+- `DATABASE_URL=<postgres-url>` (recomendado en produccion)
+
+Generar secretos en PowerShell:
+
+```powershell
+node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+```
+
+## 2) Migracion y validacion tecnica
+
+Desde raiz del repo:
+
+```bash
+npm --prefix server run migrate
+npm --prefix server run check:golive
+npm --prefix server run test:multitenant
+```
+
+Criterio de salida:
+- `check:golive` sin `FAIL`
+- `test:multitenant` con salida `[PASS]`
+
+## 3) Backup y restore
+
+### SQLite (si usas sqlite)
+
+Backup rapido:
+
+```powershell
+$ts = Get-Date -Format "yyyyMMdd-HHmmss"
+Copy-Item "server/data/app.db" "server/data/backup-app-$ts.db"
+```
+
+Restore:
+
+```powershell
+Copy-Item "server/data/backup-app-YYYYMMDD-HHMMSS.db" "server/data/app.db" -Force
+```
+
+### PostgreSQL (produccion recomendado)
+
+Backup:
+
+```bash
+pg_dump "$DATABASE_URL" > wisand-backup-$(date +%Y%m%d-%H%M%S).sql
+```
+
+Restore:
+
+```bash
+psql "$DATABASE_URL" < wisand-backup-YYYYMMDD-HHMMSS.sql
+```
+
+## 4) Alta de un cliente nuevo (sin tocar codigo)
+
+Con backend arriba y `MASTER_KEY` configurada:
+
+```bash
+npm --prefix server run tenant:create -- --name "Ferreteria Central" --code "ferreteria-central" --owner "owner_fc" --password "ClaveSegura123"
+```
+
+El script usa por defecto `http://localhost:3001`.
+Para API remota:
+
+```bash
+npm --prefix server run tenant:create -- --api "https://tu-api.com" --name "Ferreteria Central" --code "ferreteria-central" --owner "owner_fc" --password "ClaveSegura123"
+```
+
+## 5) Branding opcional por cliente
+
+Si cliente quiere identidad visual propia:
+
+1. Login owner en la app universal con su `code`.
+2. Actualizar branding del tenant (`display_name`, `logo_url`, colores) via endpoint `/branding`.
+
+Si no quiere branding propio, queda fallback WISAND automaticamente.
+
+## 6) Smoke test final (antes de cobrar)
+
+- Login con tenant real (`code + username + password`).
+- Crear producto.
+- Crear pedido y cerrar a venta.
+- Verificar que otro tenant NO vea esos datos.
+- Verificar notificaciones/push (si aplica).
+
+## 7) Publicacion movil
+
+Para clientes con app universal:
+- no recompilas por cada cliente (solo alta tenant + branding).
+
+Para white-label real (icono/splash/nombre nativo distinto):
+- crear build EAS separado por perfil.
+
+---
+
+## Resumen rapido de comando diario
+
+```bash
+npm --prefix server run dev
+npm --prefix server run check:golive
+npm --prefix server run tenant:create -- --name "Cliente X" --code "cliente-x" --owner "owner_x" --password "ClaveSegura123"
+```

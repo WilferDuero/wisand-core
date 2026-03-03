@@ -6,3 +6,10 @@ apps/admin-mobile/.expo/
 *.env.development.local
 *.env.test.local
 *.env.production.local
+.idea/
+**/node_modules/
+apps/admin-mobile/android/.gradle/
+apps/admin-mobile/android/build/
+apps/admin-mobile/android/app/build/
+server/data/*.db-wal
+server/data/*.db-shm

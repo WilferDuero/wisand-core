@@ -8,7 +8,9 @@
     "start": "node index.js",
     "migrate": "node scripts/migrate.js",
     "test:multitenant": "node scripts/test-multitenant.js",
-    "import:renacer": "node scripts/import-renacer-remote.js"
+    "import:renacer": "node scripts/import-renacer-remote.js",
+    "check:golive": "node scripts/go-live-check.js",
+    "tenant:create": "node scripts/create-tenant.js"
   },
   "keywords": ["wisand", "multi-tenant", "business-platform", "saas"],
   "author": "Wilfer Duero",
