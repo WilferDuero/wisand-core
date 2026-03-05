@@ -24,6 +24,8 @@ import { FormField } from "../../components/FormField";
 import { ActionButton } from "../../components/ActionButton";
 import { SectionCard } from "../../components/SectionCard";
 import { EmptyState } from "../../components/EmptyState";
+import { ListSkeleton } from "../../components/ListSkeleton";
+import { NoticeBanner } from "../../components/NoticeBanner";
 import { StatusBadge } from "../../components/StatusBadge";
 import { KpiCard } from "../../components/KpiCard";
 import { formatCurrencyCOP, toInteger, toNumber } from "../../lib/format";
@@ -536,28 +538,28 @@ export const ProductsScreen = () => {
             <Text style={styles.pendingActionText}>Actualizando stock...</Text>
           </View>
         ) : null}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
         {error ? (
-          <ActionButton
-            label="Reintentar productos"
-            variant="secondary"
-            onPress={() => void onRefreshProducts()}
-            disabled={hasPendingMutation || saving || refreshing}
+          <NoticeBanner
+            tone="error"
+            title="No se pudieron cargar productos"
+            message={error}
+            actionLabel="Reintentar"
+            onAction={() => void onRefreshProducts()}
           />
         ) : null}
       </SectionCard>
 
-      {loading ? (
-        <View style={styles.loadingRow}>
-          <ActivityIndicator color={theme.colors.primary} />
-          <Text style={styles.loadingText}>Cargando productos...</Text>
-        </View>
-      ) : null}
+      {loading ? <ListSkeleton rows={3} /> : null}
 
       {!loading && filteredProducts.length === 0 ? (
         <EmptyState
+          icon="cube-outline"
           title="Sin productos"
-          subtitle="Crea un producto o ajusta el filtro de busqueda."
+          subtitle={
+            hasActiveFilters
+              ? "No hay productos con los filtros actuales. Prueba limpiar filtros."
+              : "Aun no tienes productos creados. Empieza con tu primer producto."
+          }
         />
       ) : null}
 

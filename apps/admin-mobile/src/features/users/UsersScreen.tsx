@@ -16,6 +16,8 @@ import { useSyncStore } from "../../store/sync-store";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SectionCard } from "../../components/SectionCard";
 import { EmptyState } from "../../components/EmptyState";
+import { ListSkeleton } from "../../components/ListSkeleton";
+import { NoticeBanner } from "../../components/NoticeBanner";
 import { FormField } from "../../components/FormField";
 import { ActionButton } from "../../components/ActionButton";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -392,28 +394,24 @@ export const UsersScreen = () => {
             </Pressable>
           ) : null}
         </View>
-        {loading ? (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator color={theme.colors.primary} />
-            <Text style={styles.subtle}>Cargando usuarios...</Text>
-          </View>
-        ) : null}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {loading ? <ListSkeleton rows={3} /> : null}
         {error ? (
-          <ActionButton
-            label="Reintentar usuarios"
-            variant="secondary"
-            onPress={() => void onRefreshUsers()}
-            disabled={saving || refreshing}
+          <NoticeBanner
+            tone="error"
+            title="No se pudieron cargar usuarios"
+            message={error}
+            actionLabel="Reintentar"
+            onAction={() => void onRefreshUsers()}
           />
         ) : null}
         {!loading && filteredUsers.length === 0 ? (
           <EmptyState
+            icon="people-outline"
             title="Sin usuarios"
             subtitle={
               hasUserFilters
                 ? "No hay usuarios para los filtros seleccionados."
-                : "No hay usuarios para mostrar."
+                : "Aun no hay usuarios creados para este negocio."
             }
           />
         ) : null}

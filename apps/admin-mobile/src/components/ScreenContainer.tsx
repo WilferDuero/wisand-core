@@ -8,6 +8,7 @@ import {
   StyleSheet,
   View,
   ViewStyle,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppTheme } from "../constants/theme";
@@ -29,7 +30,9 @@ export const ScreenContainer = ({
   onRefresh,
 }: ScreenContainerProps) => {
   const theme = useBrandTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const { width } = useWindowDimensions();
+  const isCompact = width <= 360;
+  const styles = useMemo(() => createStyles(theme, isCompact), [theme, isCompact]);
 
   const body = scrollable ? (
     <ScrollView
@@ -65,7 +68,7 @@ export const ScreenContainer = ({
   );
 };
 
-const createStyles = (theme: AppTheme) =>
+const createStyles = (theme: AppTheme, isCompact: boolean) =>
   StyleSheet.create({
     safeArea: {
       flex: 1,
@@ -75,8 +78,8 @@ const createStyles = (theme: AppTheme) =>
       flex: 1,
     },
     content: {
-      padding: 14,
-      gap: 12,
+      paddingHorizontal: isCompact ? 10 : 14,
+      paddingVertical: isCompact ? 10 : 14,
+      gap: isCompact ? 10 : 12,
     },
   });
-

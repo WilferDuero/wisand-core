@@ -13,6 +13,8 @@ import { ActionButton } from "../../components/ActionButton";
 import { KpiCard } from "../../components/KpiCard";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SectionCard } from "../../components/SectionCard";
+import { ListSkeleton } from "../../components/ListSkeleton";
+import { NoticeBanner } from "../../components/NoticeBanner";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ENV } from "../../config/env";
 import { theme } from "../../constants/theme";
@@ -107,6 +109,13 @@ const priorityMetrics: MetricKey[] = [
   "lowStockProducts",
   "productsNoRotation30d",
   "salesRevenueToday",
+];
+
+const onboardingTips = [
+  "Carga tu catalogo base y define unidades por producto.",
+  "Registra stock inicial para activar alertas de inventario.",
+  "Crea usuarios staff para separar accesos operativos.",
+  "Haz tu primera venta para habilitar reportes de ingresos.",
 ];
 
 const LOW_STOCK_LIMIT = 3;
@@ -399,6 +408,7 @@ export const DashboardScreen = () => {
       : String(state[key]);
   const autoSyncSeconds = Math.round(ENV.autoSyncIntervalMs / 1000);
   const canUseTechControls = isSuperOwnerWisand(authUser);
+  const showOnboardingTips = !loading && state.products === 0 && state.orders === 0 && state.sales === 0;
 
   const onOpenAlert = (alert: InAppAlert) => {
     const destinationTab = getAlertDestinationTab(alert);
@@ -466,13 +476,13 @@ export const DashboardScreen = () => {
             />
           </View>
         ) : null}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
         {error ? (
-          <ActionButton
-            label="Reintentar carga"
-            variant="secondary"
-            onPress={() => void onRefreshDashboard()}
-            disabled={refreshing}
+          <NoticeBanner
+            tone="error"
+            title="Carga parcial del tablero"
+            message={error}
+            actionLabel="Reintentar"
+            onAction={() => void onRefreshDashboard()}
           />
         ) : null}
         {canUseTechControls ? (
@@ -615,6 +625,18 @@ export const DashboardScreen = () => {
         )}
       </SectionCard>
 
+      {showOnboardingTips ? (
+        <SectionCard title="Inicio rapido">
+          <Text style={styles.subtle}>Configuracion recomendada para primer uso.</Text>
+          {onboardingTips.map((tip) => (
+            <View key={tip} style={styles.tipRow}>
+              <Ionicons name="checkmark-circle-outline" size={14} color={theme.colors.success} />
+              <Text style={styles.tipText}>{tip}</Text>
+            </View>
+          ))}
+        </SectionCard>
+      ) : null}
+
       <SectionCard title="Atajos">
         <View style={styles.quickActionRow}>
           {quickActions.map((action) => (
@@ -633,12 +655,7 @@ export const DashboardScreen = () => {
         </View>
       </SectionCard>
 
-      {loading ? (
-        <View style={styles.loadingBlock}>
-          <ActivityIndicator color={theme.colors.primary} />
-          <Text style={styles.subtle}>Actualizando metricas...</Text>
-        </View>
-      ) : null}
+      {loading ? <ListSkeleton rows={2} /> : null}
 
       <SectionCard title="Resumen completo">
         <View style={styles.metricsGrid}>
@@ -824,6 +841,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  tipRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  tipText: {
+    flex: 1,
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "700",
+  },
   quickActionRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -900,4 +928,5 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
+
 

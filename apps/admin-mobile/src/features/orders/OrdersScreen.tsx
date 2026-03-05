@@ -25,6 +25,8 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { SectionCard } from "../../components/SectionCard";
 import { ActionButton } from "../../components/ActionButton";
 import { EmptyState } from "../../components/EmptyState";
+import { ListSkeleton } from "../../components/ListSkeleton";
+import { NoticeBanner } from "../../components/NoticeBanner";
 import { StatusBadge } from "../../components/StatusBadge";
 import { KpiCard } from "../../components/KpiCard";
 import { FormField } from "../../components/FormField";
@@ -1043,31 +1045,27 @@ export const OrdersScreen = () => {
           onPress={() => void onExportOrders()}
           disabled={!!activeCriticalAction}
         />
-        {error ? <Text style={styles.error}>{error}</Text> : null}
         {error ? (
-          <ActionButton
-            label="Reintentar pedidos"
-            variant="secondary"
-            onPress={() => void onRefreshOrders()}
-            disabled={!!activeCriticalAction || refreshing}
+          <NoticeBanner
+            tone="error"
+            title="No se pudieron cargar pedidos"
+            message={error}
+            actionLabel="Reintentar"
+            onAction={() => void onRefreshOrders()}
           />
         ) : null}
       </SectionCard>
 
-      {loading ? (
-        <View style={styles.loadingRow}>
-          <ActivityIndicator color={theme.colors.primary} />
-          <Text style={styles.subtle}>Cargando pedidos...</Text>
-        </View>
-      ) : null}
+      {loading ? <ListSkeleton rows={3} /> : null}
 
       {!loading && filteredOrders.length === 0 ? (
         <EmptyState
+          icon="receipt-outline"
           title="Sin pedidos"
           subtitle={
             hasActiveFilters
-              ? "No hay pedidos para los filtros seleccionados."
-              : "No hay pedidos para este filtro."
+              ? "No hay pedidos para los filtros actuales. Prueba limpiar filtros."
+              : "Aun no se han recibido pedidos en este negocio."
           }
         />
       ) : null}

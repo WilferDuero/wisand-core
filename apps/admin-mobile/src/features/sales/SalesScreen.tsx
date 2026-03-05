@@ -17,6 +17,8 @@ import { SectionCard } from "../../components/SectionCard";
 import { FormField } from "../../components/FormField";
 import { ActionButton } from "../../components/ActionButton";
 import { EmptyState } from "../../components/EmptyState";
+import { ListSkeleton } from "../../components/ListSkeleton";
+import { NoticeBanner } from "../../components/NoticeBanner";
 import { KpiCard } from "../../components/KpiCard";
 import { formatCurrencyCOP, formatDateTime, toInteger, toNumber } from "../../lib/format";
 import { theme } from "../../constants/theme";
@@ -782,13 +784,13 @@ export const SalesScreen = () => {
           {assistedItems.length ? (
             <Text style={styles.assistedTotalText}>Total asistido: {formatCurrencyCOP(assistedTotal)}</Text>
           ) : null}
-          {catalogError ? <Text style={styles.error}>{catalogError}</Text> : null}
           {catalogError ? (
-            <ActionButton
-              label="Reintentar catalogo"
-              variant="secondary"
-              onPress={() => void onRefreshSales()}
-              disabled={isOperationLocked || refreshing}
+            <NoticeBanner
+              tone="warning"
+              title="Catalogo no disponible"
+              message={catalogError}
+              actionLabel="Reintentar"
+              onAction={() => void onRefreshSales()}
             />
           ) : null}
         </View>
@@ -1052,19 +1054,14 @@ export const SalesScreen = () => {
             disabled={isOperationLocked}
           />
         ) : null}
-        {loading ? (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator color={theme.colors.primary} />
-            <Text style={styles.subtle}>Cargando ventas...</Text>
-          </View>
-        ) : null}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {loading ? <ListSkeleton rows={3} /> : null}
         {error ? (
-          <ActionButton
-            label="Reintentar ventas"
-            variant="secondary"
-            onPress={() => void onRefreshSales()}
-            disabled={isOperationLocked || refreshing}
+          <NoticeBanner
+            tone="error"
+            title="No se pudieron cargar ventas"
+            message={error}
+            actionLabel="Reintentar"
+            onAction={() => void onRefreshSales()}
           />
         ) : null}
         {!loading && filteredSales.length === 0 ? (

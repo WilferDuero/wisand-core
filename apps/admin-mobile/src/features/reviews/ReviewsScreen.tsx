@@ -13,6 +13,8 @@ import { clearReviews, listReviews } from "../../api/modules/reviews";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { SectionCard } from "../../components/SectionCard";
 import { EmptyState } from "../../components/EmptyState";
+import { ListSkeleton } from "../../components/ListSkeleton";
+import { NoticeBanner } from "../../components/NoticeBanner";
 import { ActionButton } from "../../components/ActionButton";
 import { KpiCard } from "../../components/KpiCard";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -197,31 +199,27 @@ export const ReviewsScreen = () => {
             </Pressable>
           ) : null}
         </View>
-        {error ? <Text style={styles.error}>{error}</Text> : null}
         {error ? (
-          <ActionButton
-            label="Reintentar resenas"
-            variant="secondary"
-            onPress={() => void onRefreshReviews()}
-            disabled={isOperationLocked || refreshing}
+          <NoticeBanner
+            tone="error"
+            title="No se pudieron cargar resenas"
+            message={error}
+            actionLabel="Reintentar"
+            onAction={() => void onRefreshReviews()}
           />
         ) : null}
       </SectionCard>
 
-      {loading ? (
-        <View style={styles.loadingRow}>
-          <ActivityIndicator color={theme.colors.primary} />
-          <Text style={styles.subtle}>Cargando resenas...</Text>
-        </View>
-      ) : null}
+      {loading ? <ListSkeleton rows={3} /> : null}
 
       {!loading && filteredReviews.length === 0 ? (
         <EmptyState
+          icon="chatbubble-ellipses-outline"
           title="Sin resenas"
           subtitle={
             hasSearchQuery
-              ? "No hay resenas que coincidan con la busqueda."
-              : "No hay resenas para mostrar."
+              ? "No hay resenas que coincidan con la busqueda actual."
+              : "Aun no has recibido resenas de clientes."
           }
         />
       ) : null}
