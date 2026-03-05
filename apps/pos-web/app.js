@@ -40,6 +40,7 @@ const state = {
   lastTicket: null,
   closureSummary: null,
   closureHistory: [],
+  quickCreateCode: "",
 };
 
 const el = {
@@ -58,8 +59,22 @@ const el = {
   tenantCode: document.getElementById("tenant-code"),
   username: document.getElementById("username"),
   password: document.getElementById("password"),
+  apiCheckBtn: document.getElementById("api-check-btn"),
   loginBtn: document.getElementById("login-btn"),
+  apiFeedback: document.getElementById("api-feedback"),
   loginFeedback: document.getElementById("login-feedback"),
+
+  quickCreateModal: document.getElementById("quick-create-modal"),
+  quickForm: document.getElementById("quick-form"),
+  quickCode: document.getElementById("quick-code"),
+  quickName: document.getElementById("quick-name"),
+  quickPrice: document.getElementById("quick-price"),
+  quickStock: document.getElementById("quick-stock"),
+  quickCategory: document.getElementById("quick-category"),
+  quickFeedback: document.getElementById("quick-feedback"),
+  quickCancelBtn: document.getElementById("quick-cancel-btn"),
+  quickCloseBtn: document.getElementById("quick-close-btn"),
+  quickSaveBtn: document.getElementById("quick-save-btn"),
 
   denseModeBtn: document.getElementById("dense-mode-btn"),
   productsTableWrap: document.getElementById("products-table-wrap"),
@@ -395,11 +410,16 @@ async function request(path, options = {}) {
     headers["X-Tenant-Code"] = state.tenantCode;
   }
 
-  const response = await fetch(`${state.apiBase}${path}`, {
-    method,
-    headers,
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
+  let response;
+  try {
+    response = await fetch(`${state.apiBase}${path}`, {
+      method,
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+  } catch {
+    throw new Error(`No se pudo conectar con API (${state.apiBase}). Verifica backend y /health.`);
+  }
 
   const text = await response.text();
   const data = text ? safeJson(text) : null;
@@ -419,9 +439,13 @@ async function loadBrandingByCode(rawCode) {
     return;
   }
 
-  const response = await fetch(`${state.apiBase}/tenants/${encodeURIComponent(code)}/branding`);
-  const payload = response.ok ? await response.json() : null;
-  applyBranding(payload || { ...DEFAULT_BRANDING, tenant_code: code });
+  try {
+    const response = await fetch(`${state.apiBase}/tenants/${encodeURIComponent(code)}/branding`);
+    const payload = response.ok ? await response.json() : null;
+    applyBranding(payload || { ...DEFAULT_BRANDING, tenant_code: code });
+  } catch {
+    applyBranding({ ...DEFAULT_BRANDING, tenant_code: code });
+  }
 }
 
 function findProductByCode(code) {
@@ -1015,6 +1039,164 @@ function resolveProductByScan(value) {
   );
 }
 
+function parseNumberInput(rawValue) {
+  const cleaned = String(rawValue || "")
+    .trim()
+    .replace(/\s+/g, "")
+    .replace(",", ".")
+    .replace(/[^0-9.-]/g, "");
+  if (!cleaned) return Number.NaN;
+  return Number(cleaned);
+}
+
+function isOwnerSession() {
+  return String(state.user?.role || "").trim().toLowerCase() === "owner";
+}
+
+function closeQuickCreateModal(restoreScan = true) {
+  if (!el.quickCreateModal) return;
+  el.quickCreateModal.classList.add("hidden");
+  document.body.classList.remove("modal-open");
+  if (el.quickFeedback) {
+    setFeedback(el.quickFeedback, "", "");
+  }
+
+  if (restoreScan && el.scanInput) {
+    el.scanInput.value = state.quickCreateCode || "";
+    el.scanInput.focus();
+    el.scanInput.select();
+  } else {
+    focusScanInput();
+  }
+
+  state.quickCreateCode = "";
+}
+
+function openQuickCreateModal(rawCode) {
+  const code = String(rawCode || "").trim();
+  if (!code || !el.quickCreateModal) return;
+
+  state.quickCreateCode = code;
+  if (el.quickCode) el.quickCode.value = code;
+  if (el.quickName) el.quickName.value = `Producto ${code}`;
+  if (el.quickPrice) el.quickPrice.value = "1000";
+  if (el.quickStock) el.quickStock.value = "0";
+  if (el.quickCategory) el.quickCategory.value = "General";
+  if (el.quickFeedback) setFeedback(el.quickFeedback, "", "");
+
+  el.quickCreateModal.classList.remove("hidden");
+  document.body.classList.add("modal-open");
+
+  setTimeout(() => {
+    if (el.quickName) {
+      el.quickName.focus();
+      el.quickName.select();
+    }
+  }, 0);
+}
+
+async function quickCreateProductFromScan(rawCode) {
+  const code = String(rawCode || "").trim();
+  if (!code) return;
+
+  if (!isOwnerSession()) {
+    setFeedback(el.saleFeedback, "Solo owner puede crear productos desde escaneo.", "error");
+    el.scanInput.select();
+    return;
+  }
+
+  setFeedback(el.saleFeedback, "Codigo no encontrado. Completa alta rapida.", "");
+  openQuickCreateModal(code);
+}
+
+async function submitQuickCreateProduct(event) {
+  event.preventDefault();
+
+  if (!isOwnerSession()) {
+    if (el.quickFeedback) setFeedback(el.quickFeedback, "Solo owner puede crear productos.", "error");
+    return;
+  }
+
+  const code = String(state.quickCreateCode || el.quickCode?.value || "").trim();
+  const nombreFinal = String(el.quickName?.value || "").trim();
+  const precioUnidad = parseNumberInput(el.quickPrice?.value || "");
+  const stockParsed = parseNumberInput(el.quickStock?.value || "0");
+  const stockCajas = Number.isFinite(stockParsed) ? Math.max(0, Math.floor(stockParsed)) : 0;
+  const categoria = String(el.quickCategory?.value || "").trim();
+
+  if (!code) {
+    if (el.quickFeedback) setFeedback(el.quickFeedback, "Codigo invalido.", "error");
+    return;
+  }
+
+  if (!nombreFinal) {
+    if (el.quickFeedback) setFeedback(el.quickFeedback, "Nombre requerido.", "error");
+    if (el.quickName) el.quickName.focus();
+    return;
+  }
+
+  if (!Number.isFinite(precioUnidad) || precioUnidad <= 0) {
+    if (el.quickFeedback) setFeedback(el.quickFeedback, "Precio unitario invalido.", "error");
+    if (el.quickPrice) el.quickPrice.focus();
+    return;
+  }
+
+  if (el.quickSaveBtn) {
+    setBusy(el.quickSaveBtn, true, "Creando...", "Crear y agregar");
+  }
+
+  try {
+    const payload = {
+      externalId: code,
+      nombre: nombreFinal,
+      categoria,
+      disponibilidad: "Disponible",
+      precioCaja: 0,
+      precioSobre: 0,
+      precioUnidad,
+      sobresXCaja: 1,
+      unidadesXSobre: 1,
+      stockCajas,
+      descripcion: "",
+      imagen: "",
+      ofertaActiva: false,
+      ofertaTexto: "",
+      ofertaPrecioCaja: 0,
+      ofertaPrecioSobre: 0,
+    };
+
+    const created = await request("/products", {
+      method: "POST",
+      body: payload,
+    });
+
+    await loadProducts();
+
+    const product = resolveProductByScan(code) || {
+      id: Number(created?.id) || 0,
+      externalId: code,
+      nombre: nombreFinal,
+      categoria,
+      precioUnidad,
+      stockCajas,
+    };
+
+    addProductToCart(product);
+    if (el.scanInput) el.scanInput.value = "";
+    closeQuickCreateModal(false);
+    setFeedback(el.saleFeedback, "Producto creado y agregado al carrito.", "success");
+    focusScanInput();
+  } catch (error) {
+    if (el.quickFeedback) {
+      setFeedback(el.quickFeedback, `No se pudo crear producto: ${error.message}`, "error");
+    }
+  } finally {
+    if (el.quickSaveBtn) {
+      setBusy(el.quickSaveBtn, false, "Creando...", "Crear y agregar");
+    }
+  }
+}
+
 async function fetchAllProducts() {
   const pageSize = 100;
   let page = 1;
@@ -1155,9 +1337,44 @@ function printTicket(mode) {
   }, 250);
 }
 
+async function checkApiConnection() {
+  state.apiBase = String(el.apiBase.value || "").trim().replace(/\/$/, "");
+  if (!state.apiBase) {
+    setFeedback(el.apiFeedback, "Define API Base URL.", "error");
+    return;
+  }
+
+  if (el.apiFeedback) {
+    setFeedback(el.apiFeedback, "Probando conexion...", "");
+  }
+
+  if (el.apiCheckBtn) {
+    setBusy(el.apiCheckBtn, true, "Probando...", "Probar conexion");
+  }
+
+  try {
+    const response = await fetch(`${state.apiBase}/health`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    if (el.apiFeedback) {
+      setFeedback(el.apiFeedback, "API conectada correctamente.", "success");
+    }
+  } catch {
+    if (el.apiFeedback) {
+      setFeedback(el.apiFeedback, `No hay conexion con API (${state.apiBase}).`, "error");
+    }
+  } finally {
+    if (el.apiCheckBtn) {
+      setBusy(el.apiCheckBtn, false, "Probando...", "Probar conexion");
+    }
+  }
+}
+
 async function submitLogin(event) {
   event.preventDefault();
   setFeedback(el.loginFeedback, "", "");
+  if (el.apiFeedback) setFeedback(el.apiFeedback, "", "");
 
   state.apiBase = String(el.apiBase.value || "").trim().replace(/\/$/, "");
   state.tenantCode = normalizeCode(el.tenantCode.value);
@@ -1174,23 +1391,14 @@ async function submitLogin(event) {
   try {
     await loadBrandingByCode(state.tenantCode);
 
-    const loginResponse = await fetch(`${state.apiBase}/auth/login`, {
+    const data = await request("/auth/login", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Tenant-Code": state.tenantCode,
-      },
-      body: JSON.stringify({
+      body: {
         username,
         password,
         tenant_code: state.tenantCode,
-      }),
+      },
     });
-
-    const data = await loginResponse.json();
-    if (!loginResponse.ok) {
-      throw new Error(data?.error || `HTTP ${loginResponse.status}`);
-    }
 
     state.token = String(data?.token || "");
     state.user = data?.user || null;
@@ -1301,6 +1509,11 @@ function logout() {
   state.prefs = { ...DEFAULT_PREFS };
   state.closureSummary = null;
   state.closureHistory = [];
+  state.quickCreateCode = "";
+  if (el.quickCreateModal) {
+    el.quickCreateModal.classList.add("hidden");
+  }
+  document.body.classList.remove("modal-open");
   clearSessionStorage();
   applyBranding(DEFAULT_BRANDING);
   applyTenantPrefsUi();
@@ -1377,6 +1590,11 @@ function bindKeyboardShortcuts() {
 
     if (event.key === "Escape") {
       event.preventDefault();
+      if (el.quickCreateModal && !el.quickCreateModal.classList.contains("hidden")) {
+        closeQuickCreateModal(true);
+        setFeedback(el.saleFeedback, "Alta rapida cancelada.", "");
+        return;
+      }
       clearCart("Carrito limpiado.");
     }
   });
@@ -1385,6 +1603,42 @@ function bindKeyboardShortcuts() {
 function bindEvents() {
   el.loginForm.addEventListener("submit", submitLogin);
 
+  if (el.apiCheckBtn) {
+    el.apiCheckBtn.addEventListener("click", () => {
+      void checkApiConnection();
+    });
+  }
+
+  if (el.quickForm) {
+    el.quickForm.addEventListener("submit", (event) => {
+      void submitQuickCreateProduct(event);
+    });
+  }
+
+  if (el.quickCancelBtn) {
+    el.quickCancelBtn.addEventListener("click", () => {
+      closeQuickCreateModal(true);
+      setFeedback(el.saleFeedback, "Alta rapida cancelada.", "");
+    });
+  }
+
+  if (el.quickCloseBtn) {
+    el.quickCloseBtn.addEventListener("click", () => {
+      closeQuickCreateModal(true);
+      setFeedback(el.saleFeedback, "Alta rapida cancelada.", "");
+    });
+  }
+
+  if (el.quickCreateModal) {
+    el.quickCreateModal.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (target.dataset.modalClose === "1") {
+        closeQuickCreateModal(true);
+        setFeedback(el.saleFeedback, "Alta rapida cancelada.", "");
+      }
+    });
+  }
   el.tenantCode.addEventListener("change", async () => {
     state.apiBase = String(el.apiBase.value || "").trim().replace(/\/$/, "");
     const code = normalizeCode(el.tenantCode.value);
@@ -1407,11 +1661,15 @@ function bindEvents() {
     if (event.key !== "Enter") return;
     event.preventDefault();
 
-    const scanned = el.scanInput.value;
+    const scanned = String(el.scanInput.value || "").trim();
+    if (!scanned) {
+      focusScanInput();
+      return;
+    }
+
     const product = resolveProductByScan(scanned);
     if (!product) {
-      setFeedback(el.saleFeedback, "Codigo no encontrado en catalogo.", "error");
-      el.scanInput.select();
+      void quickCreateProductFromScan(scanned);
       return;
     }
 
@@ -1460,13 +1718,13 @@ function bindEvents() {
 
   el.closureDate.addEventListener("change", () => {
     renderClosure();
-  renderClosureHistory();
+    renderClosureHistory();
   });
 
   el.closureTodayBtn.addEventListener("click", () => {
     el.closureDate.value = toDateInputValueLocal();
     renderClosure();
-  renderClosureHistory();
+    renderClosureHistory();
   });
 
   el.openingCash.addEventListener("change", () => {
@@ -1475,7 +1733,7 @@ function bindEvents() {
     el.openingCash.value = String(opening);
     saveTenantPrefs();
     renderClosure();
-  renderClosureHistory();
+    renderClosureHistory();
   });
 
   el.countedCash.addEventListener("change", () => {
@@ -1484,7 +1742,7 @@ function bindEvents() {
     el.countedCash.value = String(counted);
     saveTenantPrefs();
     renderClosure();
-  renderClosureHistory();
+    renderClosureHistory();
   });
 
   el.closureStart.addEventListener("change", () => {
@@ -1496,7 +1754,7 @@ function bindEvents() {
     saveTenantPrefs();
     renderShiftPresetState();
     renderClosure();
-  renderClosureHistory();
+    renderClosureHistory();
   });
 
   el.closureEnd.addEventListener("change", () => {
@@ -1508,7 +1766,7 @@ function bindEvents() {
     saveTenantPrefs();
     renderShiftPresetState();
     renderClosure();
-  renderClosureHistory();
+    renderClosureHistory();
   });
 
   if (el.shiftMorningBtn) {

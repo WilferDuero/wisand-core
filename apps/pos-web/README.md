@@ -22,14 +22,15 @@ Abrir en navegador: `http://localhost:3030`
 1. Cargar branding por codigo de negocio.
 2. Iniciar sesion multi-tenant.
 3. Buscar o escanear productos.
-4. Agregar al carrito.
-5. Registrar venta (`POST /sales`).
-6. Imprimir ticket A4 o termica.
-7. Revisar cierre de caja diario por metodo de pago.
-8. Definir rango horario (desde/hasta) para cierre por turno o usar botones rapidos (manana/tarde/noche/todo).
-9. Definir caja inicial y efectivo real contado (arqueo).
-10. Exportar cierre a CSV.
-11. Guardar cierre en historial del tenant y consultar cierres recientes.
+4. Si el codigo escaneado no existe, `owner` puede abrir modal de alta rapida y crearlo al vuelo.
+5. Agregar al carrito.
+6. Registrar venta (`POST /sales`).
+7. Imprimir ticket A4 o termica.
+8. Revisar cierre de caja diario por metodo de pago.
+9. Definir rango horario (desde/hasta) para cierre por turno o usar botones rapidos (manana/tarde/noche/todo).
+10. Definir caja inicial y efectivo real contado (arqueo).
+11. Exportar cierre a CSV.
+12. Guardar cierre en historial del tenant y consultar cierres recientes.
 
 ## Atajos de teclado
 
@@ -42,4 +43,3 @@ Abrir en navegador: `http://localhost:3030`
 ## Nota
 
 Este POS web comparte el mismo backend y aislamiento por `tenant_id` de la app movil.
-
