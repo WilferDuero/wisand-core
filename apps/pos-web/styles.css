@@ -181,6 +181,14 @@ button:focus {
   background: #fff;
   color: var(--text);
 }
+.btn.ghost.danger {
+  border-color: rgba(220, 38, 38, 0.35);
+  color: #b91c1c;
+}
+
+.btn.ghost.danger:hover {
+  background: rgba(220, 38, 38, 0.08);
+}
 
 .btn:disabled {
   cursor: not-allowed;
@@ -277,6 +285,16 @@ th {
 .table-wrap.dense th,
 .table-wrap.dense td {
   padding: 5px 6px;
+}
+.row-actions {
+  display: grid;
+  gap: 6px;
+}
+
+.row-actions .btn {
+  height: 34px;
+  padding: 0 10px;
+  font-size: 12px;
 }
 
 .stock-pill {

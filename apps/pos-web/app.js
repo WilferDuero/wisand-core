@@ -490,9 +490,16 @@ function renderProducts() {
           <td>${money(price)}</td>
           <td><span class="stock-pill ${stockClass}">${stock}</span></td>
           <td>
-            <button class="btn ghost add-product-btn" data-code="${escapeHtml(code)}" ${blocked ? "disabled" : ""}>
-              ${blocked ? "Sin stock" : "Agregar"}
-            </button>
+            <div class="row-actions">
+              <button class="btn ghost add-product-btn" data-code="${escapeHtml(code)}" ${blocked ? "disabled" : ""}>
+                ${blocked ? "Sin stock" : "Agregar"}
+              </button>
+              ${
+                isOwnerSession()
+                  ? `<button class="btn ghost danger remove-product-btn" data-id="${Number(product.id) || ""}" data-code="${escapeHtml(code)}">Eliminar</button>`
+                  : ""
+              }
+            </div>
           </td>
         </tr>
       `;
@@ -975,6 +982,57 @@ function addProductToCart(product) {
   setFeedback(el.saleFeedback, "", "");
   renderCart();
   focusScanInput();
+}
+
+async function deleteProductFromCatalog(product, triggerButton = null) {
+  if (!isOwnerSession()) {
+    setFeedback(el.saleFeedback, "Solo owner puede eliminar productos.", "error");
+    focusScanInput();
+    return;
+  }
+
+  const id = Number(product?.id) || 0;
+  const code = normalizeScannedCode(productCode(product));
+  const name = String(product?.nombre || "Producto").trim() || "Producto";
+  const label = code ? `${name} (${code})` : `${name} (id ${id})`;
+
+  const confirmed = window.confirm(`Vas a eliminar ${label}. Esta accion no se puede deshacer. ¿Continuar?`);
+  if (!confirmed) {
+    setFeedback(el.saleFeedback, "Eliminacion cancelada.", "");
+    focusScanInput();
+    return;
+  }
+
+  if (triggerButton) {
+    setBusy(triggerButton, true, "Eliminando...", "Eliminar");
+  }
+
+  try {
+    if (id > 0) {
+      await request(`/products/${id}`, { method: "DELETE" });
+    } else if (code) {
+      await request(`/products/external/${encodeURIComponent(code)}`, { method: "DELETE" });
+    } else {
+      throw new Error("Producto sin identificador.");
+    }
+
+    state.cart = state.cart.filter((item) => {
+      const sameId = id > 0 && Number(item.id) === id;
+      const sameCode = code && normalizeScannedCode(item.code).toLowerCase() === code.toLowerCase();
+      return !(sameId || sameCode);
+    });
+
+    await loadProducts();
+    renderCart();
+    setFeedback(el.saleFeedback, `Producto eliminado: ${name}.`, "success");
+    focusScanInput();
+  } catch (error) {
+    setFeedback(el.saleFeedback, `No se pudo eliminar producto: ${error.message}`, "error");
+  } finally {
+    if (triggerButton) {
+      setBusy(triggerButton, false, "Eliminando...", "Eliminar");
+    }
+  }
 }
 
 function updateCartItem(code, action) {
@@ -1688,11 +1746,25 @@ function bindEvents() {
   el.productsTableBody.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
-    if (!target.classList.contains("add-product-btn")) return;
 
-    const code = String(target.dataset.code || "");
-    const product = findProductByCode(code);
-    if (product) addProductToCart(product);
+    if (target.classList.contains("add-product-btn")) {
+      const code = String(target.dataset.code || "");
+      const product = findProductByCode(code);
+      if (product) addProductToCart(product);
+      return;
+    }
+
+    if (target.classList.contains("remove-product-btn")) {
+      const code = String(target.dataset.code || "");
+      const id = Number(target.dataset.id || 0);
+      const product =
+        findProductByCode(code) || state.products.find((item) => Number(item.id) === id) || null;
+      if (!product) {
+        setFeedback(el.saleFeedback, "Producto no encontrado para eliminar.", "error");
+        return;
+      }
+      void deleteProductFromCatalog(product, target);
+    }
   });
 
   el.cartItems.addEventListener("click", (event) => {
