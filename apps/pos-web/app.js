@@ -1029,11 +1029,11 @@ function filterProducts(rawQuery) {
 }
 
 function resolveProductByScan(value) {
-  const code = String(value || "").trim().toLowerCase();
+  const code = normalizeScannedCode(value).toLowerCase();
   if (!code) return null;
 
   return (
-    state.products.find((product) => productCode(product).toLowerCase() === code) ||
+    state.products.find((product) => normalizeScannedCode(productCode(product)).toLowerCase() === code) ||
     state.products.find((product) => String(product.id || "").toLowerCase() === code) ||
     null
   );
@@ -1047,6 +1047,12 @@ function parseNumberInput(rawValue) {
     .replace(/[^0-9.-]/g, "");
   if (!cleaned) return Number.NaN;
   return Number(cleaned);
+}
+function normalizeScannedCode(rawValue) {
+  return String(rawValue || "")
+    .replace(/[\u0000-\u001F\u007F]/g, "")
+    .trim()
+    .replace(/\s+/g, "");
 }
 
 function isOwnerSession() {
@@ -1073,7 +1079,7 @@ function closeQuickCreateModal(restoreScan = true) {
 }
 
 function openQuickCreateModal(rawCode) {
-  const code = String(rawCode || "").trim();
+  const code = normalizeScannedCode(rawCode);
   if (!code || !el.quickCreateModal) return;
 
   state.quickCreateCode = code;
@@ -1096,7 +1102,7 @@ function openQuickCreateModal(rawCode) {
 }
 
 async function quickCreateProductFromScan(rawCode) {
-  const code = String(rawCode || "").trim();
+  const code = normalizeScannedCode(rawCode);
   if (!code) return;
 
   if (!isOwnerSession()) {
@@ -1105,7 +1111,7 @@ async function quickCreateProductFromScan(rawCode) {
     return;
   }
 
-  setFeedback(el.saleFeedback, "Codigo no encontrado. Completa alta rapida.", "");
+  setFeedback(el.saleFeedback, `Codigo ${code} no encontrado. Completa alta rapida.`, "");
   openQuickCreateModal(code);
 }
 
@@ -1117,7 +1123,7 @@ async function submitQuickCreateProduct(event) {
     return;
   }
 
-  const code = String(state.quickCreateCode || el.quickCode?.value || "").trim();
+  const code = normalizeScannedCode(state.quickCreateCode || el.quickCode?.value || "");
   const nombreFinal = String(el.quickName?.value || "").trim();
   const precioUnidad = parseNumberInput(el.quickPrice?.value || "");
   const stockParsed = parseNumberInput(el.quickStock?.value || "0");
@@ -1661,7 +1667,8 @@ function bindEvents() {
     if (event.key !== "Enter") return;
     event.preventDefault();
 
-    const scanned = String(el.scanInput.value || "").trim();
+    const scanned = normalizeScannedCode(el.scanInput.value);
+    if (el.scanInput.value !== scanned) el.scanInput.value = scanned;
     if (!scanned) {
       focusScanInput();
       return;
