@@ -1,11 +1,10 @@
 # WISAND Core
 
-`wisand-core` es la base de producto para WISAND: una plataforma multi-tenant (multiempresa) para operaciones comerciales, con backend API, panel web y app movil admin.
+`wisand-core` es la base de producto para WISAND: una plataforma multi-tenant (multiempresa) para operaciones comerciales, con backend API y app movil admin.
 
 ## Componentes
 
 - API (`server/`): Node.js + Express + SQL manual (sin ORM).
-- Web Admin + Store (raiz + `js/`): interfaz web existente.
 - Mobile Admin (`apps/admin-mobile/`): app Expo + TypeScript para owner/staff.
 
 ## Stack
@@ -14,6 +13,10 @@
 - DB: SQLite y PostgreSQL compatibles
 - Acceso a datos: SQL manual con `db.get/db.all/db.run`
 - Mobile: Expo SDK 54, React Native, TypeScript, Zustand
+
+## Estructura operativa actual
+
+- Activo: `server/` + `apps/admin-mobile/`
 
 ## Quickstart local
 
@@ -25,11 +28,7 @@ npm --prefix server run migrate
 npm --prefix server run dev
 ```
 
-### 2) Web
-
-Abre `index.html` o `admin_login.html` en tu flujo local habitual.
-
-### 3) Mobile
+### 2) Mobile
 
 ```bash
 npm --prefix apps/admin-mobile install
@@ -56,10 +55,6 @@ npm --prefix apps/admin-mobile run start
 ```bash
 npm --prefix server run test:multitenant
 ```
-
-## Nota de contexto
-
-Este repositorio es el **core de producto WISAND**. Implementaciones anteriores de una drogueria son solo referencia/demo de tenant y no definen el branding final del core.
 
 ## Autor y licencia
 

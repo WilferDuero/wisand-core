@@ -53,7 +53,6 @@ const HeaderActions = () => {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const navigation = useNavigation<BottomTabNavigationProp<AdminTabParamList>>();
   const logout = useAuthStore((state) => state.logout);
-  const triggerSync = useSyncStore((state) => state.triggerSync);
   const inAppAlerts = useSyncStore((state) => state.inAppAlerts);
   const dismissInAppAlert = useSyncStore((state) => state.dismissInAppAlert);
   const clearInAppAlerts = useSyncStore((state) => state.clearInAppAlerts);
@@ -87,9 +86,6 @@ const HeaderActions = () => {
               <Text style={styles.alertsBadgeText}>{alertsCount > 99 ? "99+" : alertsCount}</Text>
             </View>
           ) : null}
-        </Pressable>
-        <Pressable style={styles.syncButton} onPress={triggerSync}>
-          <Text style={styles.syncButtonLabel}>Sincronizar</Text>
         </Pressable>
         <Pressable style={styles.logoutButton} onPress={() => void logout()}>
           <Text style={styles.logoutButtonLabel}>Salir</Text>
@@ -366,19 +362,6 @@ const createStyles = (theme: AppTheme) =>
     color: theme.colors.white,
     fontSize: 9,
     fontWeight: "900",
-  },
-  syncButton: {
-    backgroundColor: "rgba(255,255,255,0.15)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.3)",
-    borderRadius: theme.radius.sm,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-  },
-  syncButtonLabel: {
-    color: theme.colors.white,
-    fontWeight: "700",
-    fontSize: 12,
   },
   logoutButton: {
     backgroundColor: "rgba(239,68,68,0.85)",

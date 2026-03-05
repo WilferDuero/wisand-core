@@ -251,8 +251,6 @@ export const DashboardScreen = () => {
   const role = useAuthStore((state) => state.user?.role ?? "staff");
   const navigation = useNavigation<BottomTabNavigationProp<AdminTabParamList>>();
   const syncTick = useSyncStore((state) => state.syncTick);
-  const triggerSync = useSyncStore((state) => state.triggerSync);
-  const lastManualSyncAt = useSyncStore((state) => state.lastManualSyncAt);
   const lastAutoSyncAt = useSyncStore((state) => state.lastAutoSyncAt);
   const autoSyncEnabled = useSyncStore((state) => state.autoSyncEnabled);
   const setAutoSyncEnabled = useSyncStore((state) => state.setAutoSyncEnabled);
@@ -374,7 +372,7 @@ export const DashboardScreen = () => {
         (result) => result.status === "rejected"
       );
       if (failed) {
-        setError("Algunos datos no pudieron cargarse. Usa sincronizar para reintentar.");
+        setError("Algunos datos no pudieron cargarse. Desliza hacia abajo para reintentar.");
       }
     } finally {
       setLoading(false);
@@ -420,7 +418,7 @@ export const DashboardScreen = () => {
       <SectionCard title="Centro operativo">
         <View style={styles.topRow}>
           <View>
-            <Text style={styles.heading}>Estado API</Text>
+            <Text style={styles.heading}>Estado del sistema</Text>
             <Text style={styles.subtle}>
               Ultima respuesta: {formatDateTime(state.healthTime)}
             </Text>
@@ -434,12 +432,6 @@ export const DashboardScreen = () => {
           <View style={styles.metaPill}>
             <Ionicons name="shield-checkmark-outline" size={13} color={theme.colors.primaryStrong} />
             <Text style={styles.metaPillText}>Rol: {role}</Text>
-          </View>
-          <View style={styles.metaPill}>
-            <Ionicons name="link-outline" size={13} color={theme.colors.primaryStrong} />
-            <Text style={styles.metaPillText} numberOfLines={1}>
-              API: {ENV.apiBaseUrl}
-            </Text>
           </View>
         </View>
         <View style={styles.autoSyncRow}>
@@ -464,12 +456,6 @@ export const DashboardScreen = () => {
             onPress={() => void onRefreshDashboard()}
             disabled={refreshing}
           />
-        ) : null}
-        <ActionButton label="Sincronizar ahora" onPress={triggerSync} />
-        {lastManualSyncAt ? (
-          <Text style={styles.syncLabel}>
-            Ultima sync manual: {formatDateTime(lastManualSyncAt)}
-          </Text>
         ) : null}
         {lastAutoSyncAt ? (
           <Text style={styles.syncLabel}>
