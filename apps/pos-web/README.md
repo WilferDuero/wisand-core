@@ -29,6 +29,7 @@ Abrir en navegador: `http://localhost:3030`
 8. Definir rango horario (desde/hasta) para cierre por turno o usar botones rapidos (manana/tarde/noche/todo).
 9. Definir caja inicial y efectivo real contado (arqueo).
 10. Exportar cierre a CSV.
+11. Guardar cierre en historial del tenant y consultar cierres recientes.
 
 ## Atajos de teclado
 

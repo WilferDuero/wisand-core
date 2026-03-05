@@ -39,6 +39,7 @@ const state = {
   sales: [],
   lastTicket: null,
   closureSummary: null,
+  closureHistory: [],
 };
 
 const el = {
@@ -89,12 +90,14 @@ const el = {
   closureTodayBtn: document.getElementById("closure-today-btn"),
   refreshClosureBtn: document.getElementById("refresh-closure-btn"),
   closureSummary: document.getElementById("closure-summary"),
+  saveClosureBtn: document.getElementById("save-closure-btn"),
   printClosureBtn: document.getElementById("print-closure-btn"),
   openingCash: document.getElementById("opening-cash"),
   closureStart: document.getElementById("closure-start"),
   closureEnd: document.getElementById("closure-end"),
   countedCash: document.getElementById("counted-cash"),
   exportClosureCsvBtn: document.getElementById("export-closure-csv-btn"),
+  closureHistory: document.getElementById("closure-history"),
   shiftMorningBtn: document.getElementById("shift-morning-btn"),
   shiftAfternoonBtn: document.getElementById("shift-afternoon-btn"),
   shiftNightBtn: document.getElementById("shift-night-btn"),
@@ -283,6 +286,7 @@ function applyShiftRange(start, end) {
   saveTenantPrefs();
   renderShiftPresetState();
   renderClosure();
+  renderClosureHistory();
 }
 
 function escapeHtml(value) {
@@ -631,7 +635,7 @@ function buildClosureSummary(dateKey) {
 }
 
 function renderClosure() {
-  if (!el.closureDate || !el.closureSummary || !el.printClosureBtn || !el.exportClosureCsvBtn) return;
+  if (!el.closureDate || !el.closureSummary || !el.saveClosureBtn || !el.printClosureBtn || !el.exportClosureCsvBtn) return;
 
   if (!el.closureDate.value) {
     el.closureDate.value = toDateInputValueLocal();
@@ -641,6 +645,7 @@ function renderClosure() {
   state.closureSummary = summary;
 
   const diffTone = summary.cashDiff > 0 ? "good" : summary.cashDiff < 0 ? "bad" : "neutral";
+  el.saveClosureBtn.disabled = false;
   const diffSign = summary.cashDiff > 0 ? "+" : "";
 
   if (!summary.salesCount) {
@@ -676,6 +681,73 @@ function renderClosure() {
     <div class="closure-row"><span class="closure-label">Primera venta</span><span class="closure-value">${summary.firstAt ? fmtDate(summary.firstAt) : "--"}</span></div>
     <div class="closure-row"><span class="closure-label">Ultima venta</span><span class="closure-value">${summary.lastAt ? fmtDate(summary.lastAt) : "--"}</span></div>
   `;
+}
+
+function renderClosureHistory() {
+  if (!el.closureHistory) return;
+
+  if (!state.closureHistory.length) {
+    el.closureHistory.innerHTML = `<p class="muted" style="margin:0;">Sin cierres guardados.</p>`;
+    return;
+  }
+
+  el.closureHistory.innerHTML = state.closureHistory
+    .slice(0, 8)
+    .map((closure) => {
+      const diff = Number(closure.cash_diff) || 0;
+      const diffSign = diff > 0 ? "+" : "";
+      return `
+        <div class="closure-history-item">
+          <div class="top">
+            <span>${escapeHtml(closure.date_key || "--")} ${escapeHtml(closure.start_time || "00:00")}-${escapeHtml(closure.end_time || "23:59")}</span>
+            <span>${money(closure.total_sales)}</span>
+          </div>
+          <div class="meta">Arqueo: ${diffSign}${money(diff)} | ${escapeHtml(closure.created_by_username || "-")}</div>
+          <div class="meta">${closure.created_at ? escapeHtml(fmtDate(closure.created_at)) : ""}</div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+async function loadClosureHistory() {
+  const payload = await request("/closures?limit=8");
+  state.closureHistory = Array.isArray(payload) ? payload : [];
+  renderClosureHistory();
+}
+
+async function saveClosure() {
+  const summary = state.closureSummary;
+  if (!summary || !el.saveClosureBtn) {
+    setFeedback(el.saleFeedback, "No hay cierre para guardar.", "error");
+    return;
+  }
+
+  setBusy(el.saveClosureBtn, true, "Guardando...", "Guardar cierre");
+
+  try {
+    await request("/closures", {
+      method: "POST",
+      body: {
+        date_key: summary.dateKey,
+        start_time: summary.startTime,
+        end_time: summary.endTime,
+        opening_cash: summary.openingCash,
+        counted_cash: summary.countedCash,
+        total_sales: summary.total,
+        sales_count: summary.salesCount,
+        items_count: summary.itemsCount,
+        methods: summary.methods,
+      },
+    });
+
+    await loadClosureHistory();
+    setFeedback(el.saleFeedback, "Cierre guardado en historial.", "success");
+  } catch (error) {
+    setFeedback(el.saleFeedback, `No se pudo guardar cierre: ${error.message}`, "error");
+  } finally {
+    setBusy(el.saveClosureBtn, false, "Guardando...", "Guardar cierre");
+  }
 }
 
 function toCsvCell(value) {
@@ -978,6 +1050,7 @@ async function loadSales() {
   state.sales = Array.isArray(payload) ? payload : [];
   renderSales();
   renderClosure();
+  renderClosureHistory();
 }
 
 function applyLocalStockDeduction() {
@@ -1131,7 +1204,7 @@ async function submitLogin(event) {
 
     persistSession();
     setAuthView(true);
-    await Promise.all([loadProducts(), loadSales()]);
+    await Promise.all([loadProducts(), loadSales(), loadClosureHistory()]);
     setLastTicket(null);
     setFeedback(el.loginFeedback, "Sesion iniciada.", "success");
   } catch (error) {
@@ -1203,6 +1276,7 @@ async function completeSale() {
     renderCart();
     filterProducts(el.productSearch.value);
     await loadSales();
+      await loadClosureHistory();
 
     el.customerName.value = "";
     el.customerPhone.value = "";
@@ -1226,6 +1300,7 @@ function logout() {
   state.tenantCode = "";
   state.prefs = { ...DEFAULT_PREFS };
   state.closureSummary = null;
+  state.closureHistory = [];
   clearSessionStorage();
   applyBranding(DEFAULT_BRANDING);
   applyTenantPrefsUi();
@@ -1238,6 +1313,7 @@ function logout() {
     el.closureDate.value = toDateInputValueLocal();
   }
   renderClosure();
+  renderClosureHistory();
 }
 
 async function restoreSession() {
@@ -1263,7 +1339,7 @@ async function restoreSession() {
     applyTenantPrefsUi();
     persistSession();
     setAuthView(true);
-    await Promise.all([loadProducts(), loadSales()]);
+    await Promise.all([loadProducts(), loadSales(), loadClosureHistory()]);
     setLastTicket(null);
   } catch {
     logout();
@@ -1375,6 +1451,7 @@ function bindEvents() {
   el.refreshSalesBtn.addEventListener("click", async () => {
     try {
       await loadSales();
+      await loadClosureHistory();
       setFeedback(el.saleFeedback, "Historial actualizado.", "success");
     } catch (error) {
       setFeedback(el.saleFeedback, `No se pudo actualizar ventas: ${error.message}`, "error");
@@ -1383,11 +1460,13 @@ function bindEvents() {
 
   el.closureDate.addEventListener("change", () => {
     renderClosure();
+  renderClosureHistory();
   });
 
   el.closureTodayBtn.addEventListener("click", () => {
     el.closureDate.value = toDateInputValueLocal();
     renderClosure();
+  renderClosureHistory();
   });
 
   el.openingCash.addEventListener("change", () => {
@@ -1396,6 +1475,7 @@ function bindEvents() {
     el.openingCash.value = String(opening);
     saveTenantPrefs();
     renderClosure();
+  renderClosureHistory();
   });
 
   el.countedCash.addEventListener("change", () => {
@@ -1404,6 +1484,7 @@ function bindEvents() {
     el.countedCash.value = String(counted);
     saveTenantPrefs();
     renderClosure();
+  renderClosureHistory();
   });
 
   el.closureStart.addEventListener("change", () => {
@@ -1415,6 +1496,7 @@ function bindEvents() {
     saveTenantPrefs();
     renderShiftPresetState();
     renderClosure();
+  renderClosureHistory();
   });
 
   el.closureEnd.addEventListener("change", () => {
@@ -1426,6 +1508,7 @@ function bindEvents() {
     saveTenantPrefs();
     renderShiftPresetState();
     renderClosure();
+  renderClosureHistory();
   });
 
   if (el.shiftMorningBtn) {
@@ -1454,12 +1537,18 @@ function bindEvents() {
   el.refreshClosureBtn.addEventListener("click", async () => {
     try {
       await loadSales();
+      await loadClosureHistory();
       setFeedback(el.saleFeedback, "Cierre recalculado.", "success");
     } catch (error) {
       setFeedback(el.saleFeedback, `No se pudo recalcular cierre: ${error.message}`, "error");
     }
   });
 
+  if (el.saveClosureBtn) {
+    el.saveClosureBtn.addEventListener("click", () => {
+      void saveClosure();
+    });
+  }
   el.printClosureBtn.addEventListener("click", () => {
     printClosureReport();
   });
@@ -1515,41 +1604,9 @@ async function init() {
   renderCart();
   renderSales();
   renderClosure();
+  renderClosureHistory();
   await restoreSession();
 }
 
 void init();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

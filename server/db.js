@@ -107,6 +107,26 @@ async function applySqliteMultiTenantMigration(db) {
       accent_color TEXT NOT NULL DEFAULT '#2f6df6',
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS cash_closures (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL,
+      date_key TEXT NOT NULL,
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      opening_cash REAL NOT NULL DEFAULT 0,
+      counted_cash REAL NOT NULL DEFAULT 0,
+      expected_cash REAL NOT NULL DEFAULT 0,
+      cash_diff REAL NOT NULL DEFAULT 0,
+      total_sales REAL NOT NULL DEFAULT 0,
+      sales_count INTEGER NOT NULL DEFAULT 0,
+      items_count INTEGER NOT NULL DEFAULT 0,
+      methods_json TEXT,
+      notes TEXT,
+      created_by_user_id INTEGER,
+      created_by_username TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   const alterStatements = [
@@ -198,6 +218,8 @@ async function applySqliteMultiTenantMigration(db) {
     "CREATE INDEX IF NOT EXISTS idx_reviews_tenant_id ON reviews(tenant_id);",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_push_tokens_token ON push_tokens(token);",
     "CREATE INDEX IF NOT EXISTS idx_push_tokens_tenant_role_active ON push_tokens(tenant_id, role, active);",
+    "CREATE INDEX IF NOT EXISTS idx_cash_closures_tenant_date ON cash_closures(tenant_id, date_key);",
+    "CREATE INDEX IF NOT EXISTS idx_cash_closures_tenant_created ON cash_closures(tenant_id, created_at DESC);",
   ];
   for (const stmt of indexStatements) {
     try {
@@ -226,6 +248,27 @@ async function applyPostgresMultiTenantMigration(pool) {
       secondary_color TEXT NOT NULL DEFAULT '#0f172a',
       accent_color TEXT NOT NULL DEFAULT '#2f6df6',
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    `,
+    `
+    CREATE TABLE IF NOT EXISTS cash_closures (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT NOT NULL,
+      date_key TEXT NOT NULL,
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      opening_cash REAL NOT NULL DEFAULT 0,
+      counted_cash REAL NOT NULL DEFAULT 0,
+      expected_cash REAL NOT NULL DEFAULT 0,
+      cash_diff REAL NOT NULL DEFAULT 0,
+      total_sales REAL NOT NULL DEFAULT 0,
+      sales_count INTEGER NOT NULL DEFAULT 0,
+      items_count INTEGER NOT NULL DEFAULT 0,
+      methods_json TEXT,
+      notes TEXT,
+      created_by_user_id BIGINT,
+      created_by_username TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     `,
     "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS code TEXT;",
@@ -303,6 +346,8 @@ async function applyPostgresMultiTenantMigration(pool) {
     "CREATE INDEX IF NOT EXISTS idx_reviews_tenant_id ON reviews(tenant_id);",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_push_tokens_token ON push_tokens(token);",
     "CREATE INDEX IF NOT EXISTS idx_push_tokens_tenant_role_active ON push_tokens(tenant_id, role, active);",
+    "CREATE INDEX IF NOT EXISTS idx_cash_closures_tenant_date ON cash_closures(tenant_id, date_key);",
+    "CREATE INDEX IF NOT EXISTS idx_cash_closures_tenant_created ON cash_closures(tenant_id, created_at DESC);",
     "SELECT setval(pg_get_serial_sequence('tenants', 'id'), GREATEST((SELECT MAX(id) FROM tenants), 1));",
   ];
 
@@ -403,6 +448,26 @@ async function initSqlite() {
       secondary_color TEXT NOT NULL DEFAULT '#0f172a',
       accent_color TEXT NOT NULL DEFAULT '#2f6df6',
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS cash_closures (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL DEFAULT 1,
+      date_key TEXT NOT NULL,
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      opening_cash REAL NOT NULL DEFAULT 0,
+      counted_cash REAL NOT NULL DEFAULT 0,
+      expected_cash REAL NOT NULL DEFAULT 0,
+      cash_diff REAL NOT NULL DEFAULT 0,
+      total_sales REAL NOT NULL DEFAULT 0,
+      sales_count INTEGER NOT NULL DEFAULT 0,
+      items_count INTEGER NOT NULL DEFAULT 0,
+      methods_json TEXT,
+      notes TEXT,
+      created_by_user_id INTEGER,
+      created_by_username TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS products (
@@ -525,6 +590,27 @@ async function initPostgres() {
       secondary_color TEXT NOT NULL DEFAULT '#0f172a',
       accent_color TEXT NOT NULL DEFAULT '#2f6df6',
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    `,
+    `
+    CREATE TABLE IF NOT EXISTS cash_closures (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT NOT NULL DEFAULT 1,
+      date_key TEXT NOT NULL,
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      opening_cash REAL NOT NULL DEFAULT 0,
+      counted_cash REAL NOT NULL DEFAULT 0,
+      expected_cash REAL NOT NULL DEFAULT 0,
+      cash_diff REAL NOT NULL DEFAULT 0,
+      total_sales REAL NOT NULL DEFAULT 0,
+      sales_count INTEGER NOT NULL DEFAULT 0,
+      items_count INTEGER NOT NULL DEFAULT 0,
+      methods_json TEXT,
+      notes TEXT,
+      created_by_user_id BIGINT,
+      created_by_username TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     `,
     `
@@ -666,3 +752,4 @@ module.exports = {
   DEFAULT_BRANDING,
   normalizeTenantCode,
 };
+

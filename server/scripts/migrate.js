@@ -25,6 +25,7 @@ async function main() {
   } else {
     console.log("[migrate] using SQLite local file");
   }
+
   const db = await dbPromise;
 
   for (const tableName of ["users", "products", "orders", "reviews", "sales", "push_tokens"]) {
@@ -34,6 +35,9 @@ async function main() {
   await db.get("SELECT code FROM tenants LIMIT 1");
   await db.get(
     "SELECT tenant_id, display_name, logo_url, primary_color, secondary_color, accent_color, updated_at FROM tenant_branding LIMIT 1"
+  );
+  await db.get(
+    "SELECT tenant_id, date_key, start_time, end_time, expected_cash, cash_diff FROM cash_closures LIMIT 1"
   );
 
   const tenant = await db.get("SELECT id, name, code, created_at FROM tenants WHERE id = ?", [
@@ -47,21 +51,27 @@ async function main() {
     ]);
     tableCounts[tableName] = asCount(row);
   }
+
   const brandingRow = await db.get(
     "SELECT tenant_id, display_name, logo_url, primary_color, secondary_color, accent_color, updated_at FROM tenant_branding WHERE tenant_id = ?",
     [DEFAULT_TENANT_ID]
   );
+
   const totalBranding = asCount(await db.get("SELECT COUNT(*) as c FROM tenant_branding"));
+  const totalClosures = asCount(await db.get("SELECT COUNT(*) as c FROM cash_closures"));
 
   console.log(
     `[migrate] default_tenant_id=${tenant?.id || DEFAULT_TENANT_ID} default_tenant_name=${
       tenant?.name || DEFAULT_TENANT_NAME
     } default_tenant_code=${tenant?.code || DEFAULT_TENANT_CODE}`
   );
+
   for (const [tableName, count] of Object.entries(tableCounts)) {
     console.log(`[migrate] ${tableName}.tenant_${DEFAULT_TENANT_ID}=${count}`);
   }
+
   console.log(`[migrate] tenant_branding.total=${totalBranding}`);
+  console.log(`[migrate] cash_closures.total=${totalClosures}`);
   console.log(
     `[migrate] tenant_branding.default_tenant=${
       brandingRow ? "yes" : "no"
@@ -71,6 +81,7 @@ async function main() {
       brandingRow?.accent_color || DEFAULT_BRANDING.accent_color
     }`
   );
+
   console.log("[migrate] OK");
 }
 
@@ -78,3 +89,4 @@ main().catch((error) => {
   console.error("[migrate] FAILED", error?.message || error);
   process.exit(1);
 });
+

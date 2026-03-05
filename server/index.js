@@ -40,6 +40,8 @@ const DEFAULT_CORS_ORIGINS = [
   "http://127.0.0.1:3000",
   "http://localhost:5173",
   "http://127.0.0.1:5173",
+  "http://localhost:3030",
+  "http://127.0.0.1:3030",
   "null",
 ];
 
@@ -133,6 +135,77 @@ const safeJson = (val, fallback = []) => {
   } catch {
     return fallback;
   }
+};
+
+
+const CLOSURE_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const CLOSURE_TIME_RE = /^\d{2}:\d{2}$/;
+const CLOSURE_METHOD_KEYS = ["efectivo", "transferencia", "tarjeta", "mixto", "otros"];
+
+const normalizeClosureDateKey = (value) => {
+  const raw = String(value || "").trim();
+  return CLOSURE_DATE_RE.test(raw) ? raw : "";
+};
+
+const normalizeClosureTime = (value, fallback = "00:00") => {
+  const raw = String(value || "").trim();
+  if (!CLOSURE_TIME_RE.test(raw)) return fallback;
+  const [hour, minute] = raw.split(":").map((part) => Number(part));
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return fallback;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return fallback;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+};
+
+const normalizeClosureNotes = (value) => String(value || "").trim().slice(0, 400);
+
+const normalizeClosureMethods = (value) => {
+  const raw = typeof value === "object" && value ? value : {};
+  const normalized = {};
+  for (const key of CLOSURE_METHOD_KEYS) {
+    normalized[key] = Math.max(0, toNumber(raw[key], 0));
+  }
+  return normalized;
+};
+
+const parseClosureMethods = (value) => {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return normalizeClosureMethods(value);
+  }
+  if (typeof value === "string" && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      return normalizeClosureMethods(parsed);
+    } catch {
+      return normalizeClosureMethods({});
+    }
+  }
+  return normalizeClosureMethods({});
+};
+
+const mapCashClosureRow = (row) => {
+  if (!row) return null;
+  const methods = parseClosureMethods(pick(row, "methods_json", "methodsJson"));
+  return {
+    id: toInt(row.id, 0),
+    tenant_id: toTenantId(pick(row, "tenant_id", "tenantId"), DEFAULT_TENANT_ID),
+    date_key: normalizeClosureDateKey(pick(row, "date_key", "dateKey")),
+    start_time: normalizeClosureTime(pick(row, "start_time", "startTime"), "00:00"),
+    end_time: normalizeClosureTime(pick(row, "end_time", "endTime"), "23:59"),
+    opening_cash: Math.max(0, toNumber(pick(row, "opening_cash", "openingCash"), 0)),
+    counted_cash: Math.max(0, toNumber(pick(row, "counted_cash", "countedCash"), 0)),
+    expected_cash: Math.max(0, toNumber(pick(row, "expected_cash", "expectedCash"), 0)),
+    cash_diff: toNumber(pick(row, "cash_diff", "cashDiff"), 0),
+    total_sales: Math.max(0, toNumber(pick(row, "total_sales", "totalSales"), 0)),
+    sales_count: Math.max(0, toInt(pick(row, "sales_count", "salesCount"), 0)),
+    items_count: Math.max(0, toInt(pick(row, "items_count", "itemsCount"), 0)),
+    methods,
+    notes: normalizeClosureNotes(pick(row, "notes")),
+    created_by_user_id: toInt(pick(row, "created_by_user_id", "createdByUserId"), 0),
+    created_by_username: String(
+      pick(row, "created_by_username", "createdByUsername") || ""
+    ).trim(),
+    created_at: pick(row, "created_at", "createdAt") || null,
+  };
 };
 
 const toTenantId = (value, fallback = 0) => {
@@ -1848,6 +1921,134 @@ app.delete("/sales", authRequired, ownerOnly, async (req, res) => {
 });
 
 /* ============================
+   Cierres de caja
+============================ */
+app.get("/closures", authRequired, async (req, res) => {
+  const tenantId = req.user.tenant_id;
+  const dateKey = normalizeClosureDateKey(pick(req.query, "date", "date_key", "dateKey"));
+  const requestedLimit = toInt(pick(req.query, "limit"), 20);
+  const limit = Math.min(100, Math.max(1, requestedLimit));
+
+  const db = await dbPromise;
+  const rows = dateKey
+    ? await db.all(
+        `
+        SELECT * FROM cash_closures
+        WHERE tenant_id = ? AND date_key = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT ?
+        `,
+        [tenantId, dateKey, limit]
+      )
+    : await db.all(
+        `
+        SELECT * FROM cash_closures
+        WHERE tenant_id = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT ?
+        `,
+        [tenantId, limit]
+      );
+
+  return res.json(rows.map((row) => mapCashClosureRow(row)));
+});
+
+app.post("/closures", authRequired, async (req, res) => {
+  const tenantId = req.user.tenant_id;
+  const body = req.body || {};
+
+  const dateKey = normalizeClosureDateKey(pick(body, "date_key", "dateKey", "date"));
+  if (!dateKey) {
+    return res.status(400).json({ error: "date_key invalido (usa YYYY-MM-DD)" });
+  }
+
+  const startTime = normalizeClosureTime(pick(body, "start_time", "startTime", "from"), "00:00");
+  const endTime = normalizeClosureTime(pick(body, "end_time", "endTime", "to"), "23:59");
+  const openingCash = Math.max(0, toNumber(pick(body, "opening_cash", "openingCash"), 0));
+  const countedCash = Math.max(0, toNumber(pick(body, "counted_cash", "countedCash"), 0));
+  const methods = normalizeClosureMethods(pick(body, "methods", "methods_json", "methodsJson"));
+  const expectedCash = openingCash + methods.efectivo;
+  const cashDiff = countedCash - expectedCash;
+  const totalSales = Math.max(0, toNumber(pick(body, "total_sales", "totalSales"), 0));
+  const salesCount = Math.max(0, toInt(pick(body, "sales_count", "salesCount"), 0));
+  const itemsCount = Math.max(0, toInt(pick(body, "items_count", "itemsCount"), 0));
+  const notes = normalizeClosureNotes(pick(body, "notes", "note", "nota"));
+
+  const db = await dbPromise;
+  const result = await db.run(
+    `
+    INSERT INTO cash_closures (
+      tenant_id,
+      date_key,
+      start_time,
+      end_time,
+      opening_cash,
+      counted_cash,
+      expected_cash,
+      cash_diff,
+      total_sales,
+      sales_count,
+      items_count,
+      methods_json,
+      notes,
+      created_by_user_id,
+      created_by_username,
+      created_at
+    )
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+    `,
+    [
+      tenantId,
+      dateKey,
+      startTime,
+      endTime,
+      openingCash,
+      countedCash,
+      expectedCash,
+      cashDiff,
+      totalSales,
+      salesCount,
+      itemsCount,
+      JSON.stringify(methods),
+      notes,
+      req.user.id,
+      String(req.user.username || "").trim(),
+    ]
+  );
+
+  const insertedId = toInt(result?.lastID, 0);
+  const inserted = insertedId
+    ? await db.get("SELECT * FROM cash_closures WHERE id = ? AND tenant_id = ?", [
+        insertedId,
+        tenantId,
+      ])
+    : null;
+
+  return res.status(201).json(
+    mapCashClosureRow(
+      inserted || {
+        id: insertedId,
+        tenant_id: tenantId,
+        date_key: dateKey,
+        start_time: startTime,
+        end_time: endTime,
+        opening_cash: openingCash,
+        counted_cash: countedCash,
+        expected_cash: expectedCash,
+        cash_diff: cashDiff,
+        total_sales: totalSales,
+        sales_count: salesCount,
+        items_count: itemsCount,
+        methods_json: JSON.stringify(methods),
+        notes,
+        created_by_user_id: req.user.id,
+        created_by_username: String(req.user.username || "").trim(),
+        created_at: new Date().toISOString(),
+      }
+    )
+  );
+});
+/* ============================
    Resenas
 ============================ */
 app.get("/reviews", authOptional, async (req, res) => {
@@ -1891,3 +2092,4 @@ app.delete("/reviews", authRequired, ownerOnly, async (req, res) => {
 app.listen(PORT, () => {
   console.log(`API lista en http://localhost:${PORT}`);
 });
+
