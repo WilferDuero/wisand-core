@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WISAND POS Web</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-wrap">
+          <div class="brand-mark" id="brand-monogram">W</div>
+          <img id="brand-logo" class="brand-logo hidden" alt="Logo negocio" />
+          <div>
+            <h1 id="brand-name">WISAND</h1>
+            <p id="brand-subtitle">POS Web para PC</p>
+          </div>
+        </div>
+        <div class="topbar-meta">
+          <p id="session-user" class="session-user">Sin sesion</p>
+          <button id="logout-btn" class="btn ghost hidden" type="button">Cerrar sesion</button>
+        </div>
+      </header>
+
+      <main class="content">
+        <section id="login-view" class="card login-card">
+          <h2>Ingresar al negocio</h2>
+          <p class="muted">Usa codigo de negocio, usuario y contrasena para abrir el POS.</p>
+
+          <form id="login-form" class="form-grid">
+            <label>
+              API Base URL
+              <input id="api-base" type="text" value="http://localhost:3001" required />
+            </label>
+            <label>
+              Codigo negocio
+              <input id="tenant-code" type="text" placeholder="ej: renacer" required autocomplete="off" />
+            </label>
+            <label>
+              Usuario
+              <input id="username" type="text" required autocomplete="username" />
+            </label>
+            <label>
+              Contrasena
+              <input id="password" type="password" required autocomplete="current-password" />
+            </label>
+            <button id="login-btn" class="btn primary" type="submit">Entrar</button>
+          </form>
+          <p id="login-feedback" class="feedback"></p>
+        </section>
+
+        <section id="pos-view" class="pos-layout hidden">
+          <article class="card">
+            <div class="panel-head">
+              <h2>Catalogo</h2>
+              <div class="panel-actions">
+                <button id="dense-mode-btn" class="btn ghost" type="button">Vista densa: OFF</button>
+                <button id="refresh-products-btn" class="btn ghost" type="button">Actualizar</button>
+              </div>
+            </div>
+            <div class="catalog-tools">
+              <input id="product-search" type="search" placeholder="Buscar por nombre, codigo o categoria" />
+              <input id="scan-input" type="text" placeholder="Escanear codigo de barras y Enter" />
+            </div>
+            <p class="shortcuts">F2 Buscar - F4 Registrar venta - F8 Imprimir cierre - F9 Exportar cierre CSV - Esc Limpiar carrito</p>
+            <div id="products-table-wrap" class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Codigo</th>
+                    <th>Producto</th>
+                    <th>Categoria</th>
+                    <th>Precio</th>
+                    <th>Stock</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="products-table-body"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="card">
+            <h2>Venta</h2>
+
+            <div id="cart-items" class="cart-items"></div>
+
+            <div class="totals">
+              <p>Items: <strong id="cart-count">0</strong></p>
+              <p class="total-strong">Total: <strong id="cart-total">$0</strong></p>
+            </div>
+
+            <div class="total-display" id="total-display">$0</div>
+
+            <label class="switch-row">
+              <input id="enforce-stock" type="checkbox" />
+              <span>Bloquear venta sin stock (por tenant en este equipo)</span>
+            </label>
+
+            <div class="form-grid compact">
+              <label>
+                Cliente
+                <input id="customer-name" type="text" placeholder="Opcional" />
+              </label>
+              <label>
+                Telefono
+                <input id="customer-phone" type="text" placeholder="Opcional" />
+              </label>
+              <label>
+                Metodo pago
+                <select id="payment-method">
+                  <option value="efectivo">Efectivo</option>
+                  <option value="transferencia">Transferencia</option>
+                  <option value="tarjeta">Tarjeta</option>
+                  <option value="mixto">Mixto</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="cart-actions">
+              <button id="clear-cart-btn" class="btn ghost" type="button">Limpiar</button>
+              <button id="complete-sale-btn" class="btn primary" type="button">Registrar venta</button>
+            </div>
+
+            <div class="print-actions">
+              <button id="print-a4-btn" class="btn ghost" type="button" disabled>Imprimir A4</button>
+              <button id="print-thermal-btn" class="btn ghost" type="button" disabled>Imprimir termica</button>
+            </div>
+
+            <p id="sale-feedback" class="feedback"></p>
+          </article>
+
+          <article class="card side-panel">
+            <div class="panel-head">
+              <h2>Ultimas ventas</h2>
+              <button id="refresh-sales-btn" class="btn ghost" type="button">Actualizar</button>
+            </div>
+            <ul id="sales-list" class="sales-list"></ul>
+
+            <hr class="panel-divider" />
+
+            <div class="panel-head">
+              <h2>Cierre de caja</h2>
+              <div class="panel-actions">
+                <button id="closure-today-btn" class="btn ghost" type="button">Hoy</button>
+                <button id="refresh-closure-btn" class="btn ghost" type="button">Calcular</button>
+              </div>
+            </div>
+
+            <div class="closure-controls two-cols">
+              <label>
+                Fecha de cierre
+                <input id="closure-date" type="date" />
+              </label>
+              <label>
+                Caja inicial (efectivo)
+                <input id="opening-cash" type="number" min="0" step="1000" value="0" />
+              </label>
+              <label>
+                Desde
+                <input id="closure-start" type="time" value="00:00" />
+              </label>
+              <label>
+                Hasta
+                <input id="closure-end" type="time" value="23:59" />
+              </label>
+              <label>
+                Efectivo real contado
+                <input id="counted-cash" type="number" min="0" step="1000" value="0" />
+              </label>
+            </div>
+            <div class="shift-presets">
+              <span class="muted">Turno rapido</span>
+              <div class="shift-buttons">
+                <button id="shift-morning-btn" class="btn ghost" type="button">Manana</button>
+                <button id="shift-afternoon-btn" class="btn ghost" type="button">Tarde</button>
+                <button id="shift-night-btn" class="btn ghost" type="button">Noche</button>
+                <button id="shift-all-btn" class="btn ghost" type="button">Todo el dia</button>
+              </div>
+            </div>
+
+            <div id="closure-summary" class="closure-summary"></div>
+            <div class="closure-actions">
+              <button id="print-closure-btn" class="btn ghost" type="button" disabled>Imprimir cierre</button>
+              <button id="export-closure-csv-btn" class="btn ghost" type="button" disabled>Exportar CSV</button>
+            </div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <script src="./app.js" defer></script>
+  </body>
+</html>
+
+
+
+
