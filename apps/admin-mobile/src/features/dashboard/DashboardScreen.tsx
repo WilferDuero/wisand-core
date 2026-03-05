@@ -450,20 +450,22 @@ export const DashboardScreen = () => {
             </View>
           ) : null}
         </View>
-        <View style={styles.autoSyncRow}>
-          <View style={styles.autoSyncTextBlock}>
-            <Text style={styles.autoSyncLabel}>Auto-sync cada {autoSyncSeconds}s</Text>
-            <Text style={styles.subtle}>
-              {autoSyncEnabled ? "Activo" : "Pausado"} (solo app abierta)
-            </Text>
+        {canUseTechControls ? (
+          <View style={styles.autoSyncRow}>
+            <View style={styles.autoSyncTextBlock}>
+              <Text style={styles.autoSyncLabel}>Auto-sync cada {autoSyncSeconds}s</Text>
+              <Text style={styles.subtle}>
+                {autoSyncEnabled ? "Activo" : "Pausado"} (solo app abierta)
+              </Text>
+            </View>
+            <Switch
+              value={autoSyncEnabled}
+              onValueChange={setAutoSyncEnabled}
+              trackColor={{ false: "rgba(98,108,113,0.3)", true: "rgba(33,128,141,0.4)" }}
+              thumbColor={autoSyncEnabled ? theme.colors.primaryStrong : "#f3f4f6"}
+            />
           </View>
-          <Switch
-            value={autoSyncEnabled}
-            onValueChange={setAutoSyncEnabled}
-            trackColor={{ false: "rgba(98,108,113,0.3)", true: "rgba(33,128,141,0.4)" }}
-            thumbColor={autoSyncEnabled ? theme.colors.primaryStrong : "#f3f4f6"}
-          />
-        </View>
+        ) : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {error ? (
           <ActionButton
@@ -481,7 +483,7 @@ export const DashboardScreen = () => {
             Ultima sync manual: {formatDateTime(lastManualSyncAt)}
           </Text>
         ) : null}
-        {lastAutoSyncAt ? (
+        {canUseTechControls && lastAutoSyncAt ? (
           <Text style={styles.syncLabel}>
             Ultima auto-sync: {formatDateTime(lastAutoSyncAt)}
           </Text>

@@ -410,14 +410,14 @@ function authRequired(req, res, next) {
       username: String(decoded.username || ""),
     };
     if (!req.user.id || !req.user.tenant_id) {
-      return res.status(401).json({ error: "Token inválido" });
+      return res.status(401).json({ error: "Token invalido" });
     }
     return next();
   } catch (e) {
     if (pushTag) {
       console.warn(`[${pushTag}] unauthorized reason=invalid-jwt`);
     }
-    return res.status(401).json({ error: "Token inválido" });
+    return res.status(401).json({ error: "Token invalido" });
   }
 }
 
@@ -706,7 +706,7 @@ app.get("/", (_req, res) => {
 app.post("/auth/login", async (req, res) => {
   const ip = getClientIp(req);
   if (isLoginBlocked(ip)) {
-    return res.status(429).json({ error: "Demasiados intentos. Intenta más tarde." });
+    return res.status(429).json({ error: "Demasiados intentos. Intenta mas tarde." });
   }
 
   const { username = "", password = "" } = req.body || {};
@@ -714,7 +714,7 @@ app.post("/auth/login", async (req, res) => {
   const p = String(password || "").trim();
   if (!u || !p) {
     recordLoginFailure(ip);
-    return res.status(400).json({ error: "Usuario y contraseña requeridos" });
+    return res.status(400).json({ error: "Usuario y contrasena requeridos" });
   }
 
   const db = await dbPromise;
@@ -858,14 +858,14 @@ app.put("/branding", authRequired, ownerOnly, async (req, res) => {
       })
     : current.logo_url;
   if (nextLogoUrl === null) {
-    return res.status(400).json({ error: "logo_url inválido" });
+    return res.status(400).json({ error: "logo_url invalido" });
   }
 
   const nextPrimary = hasPrimary
     ? normalizeBrandingColor(pick(body, "primary_color", "primaryColor"), current.primary_color)
     : current.primary_color;
   if (nextPrimary === null) {
-    return res.status(400).json({ error: "primary_color inválido. Usa formato #RRGGBB" });
+    return res.status(400).json({ error: "primary_color invalido. Usa formato #RRGGBB" });
   }
 
   const nextSecondary = hasSecondary
@@ -875,14 +875,14 @@ app.put("/branding", authRequired, ownerOnly, async (req, res) => {
       )
     : current.secondary_color;
   if (nextSecondary === null) {
-    return res.status(400).json({ error: "secondary_color inválido. Usa formato #RRGGBB" });
+    return res.status(400).json({ error: "secondary_color invalido. Usa formato #RRGGBB" });
   }
 
   const nextAccent = hasAccent
     ? normalizeBrandingColor(pick(body, "accent_color", "accentColor"), current.accent_color)
     : current.accent_color;
   if (nextAccent === null) {
-    return res.status(400).json({ error: "accent_color inválido. Usa formato #RRGGBB" });
+    return res.status(400).json({ error: "accent_color invalido. Usa formato #RRGGBB" });
   }
 
   if (existingRow?.tenant_id) {
@@ -1048,25 +1048,30 @@ app.post("/notifications/register", authRequired, async (req, res) => {
   }
 
   const db = await dbPromise;
-  const existing = await db.get("SELECT id FROM push_tokens WHERE token = ? AND tenant_id = ?", [
-    token,
-    tenantId,
-  ]);
-  if (existing?.id) {
+  const persistExistingToken = async (existingRow) => {
+    const previousTenantId = toTenantId(existingRow?.tenant_id, 0);
     await db.run(
       `
       UPDATE push_tokens
-      SET userId = ?, role = ?, platform = ?, deviceId = ?, active = 1, updatedAt = CURRENT_TIMESTAMP
-      WHERE id = ? AND tenant_id = ?
+      SET tenant_id = ?, userId = ?, role = ?, platform = ?, deviceId = ?, active = 1, updatedAt = CURRENT_TIMESTAMP
+      WHERE id = ?
       `,
-      [req.user.id, req.user.role, platform || null, deviceId || null, existing.id, tenantId]
+      [tenantId, req.user.id, req.user.role, platform || null, deviceId || null, existingRow.id]
     );
+    const moved = previousTenantId > 0 && previousTenantId !== tenantId;
     console.log(
-      `[push-register] ok user=${req.user.id} role=${req.user.role} platform=${platform || "-"} updated=true token=${maskPushToken(
+      `[push-register] ok user=${req.user.id} role=${req.user.role} platform=${platform || "-"} updated=true moved=${moved} token=${maskPushToken(
         token
       )}`
     );
-    return res.json({ ok: true, updated: true });
+    return res.json({ ok: true, updated: true, moved });
+  };
+
+  const existingByToken = await db.get("SELECT id, tenant_id FROM push_tokens WHERE token = ?", [
+    token,
+  ]);
+  if (existingByToken?.id) {
+    return persistExistingToken(existingByToken);
   }
 
   try {
@@ -1079,10 +1084,16 @@ app.post("/notifications/register", authRequired, async (req, res) => {
     );
   } catch (error) {
     if (/unique/i.test(String(error?.message || ""))) {
-      return res.status(409).json({ error: "Token push ya registrado para otro tenant" });
+      const conflicted = await db.get("SELECT id, tenant_id FROM push_tokens WHERE token = ?", [
+        token,
+      ]);
+      if (conflicted?.id) {
+        return persistExistingToken(conflicted);
+      }
     }
     throw error;
   }
+
   console.log(
     `[push-register] ok user=${req.user.id} role=${req.user.role} platform=${platform || "-"} updated=false token=${maskPushToken(
       token
@@ -1131,8 +1142,8 @@ app.post("/users", authRequired, ownerOnly, async (req, res) => {
   const u = String(username || "").trim();
   const p = String(password || "").trim();
   const r = String(role || "staff").trim();
-  if (!u || !p) return res.status(400).json({ error: "Usuario y contraseña requeridos" });
-  if (!["owner", "staff"].includes(r)) return res.status(400).json({ error: "Rol inválido" });
+  if (!u || !p) return res.status(400).json({ error: "Usuario y contrasena requeridos" });
+  if (!["owner", "staff"].includes(r)) return res.status(400).json({ error: "Rol invalido" });
 
   const db = await dbPromise;
   const exists = await db.get("SELECT id FROM users WHERE username = ? AND tenant_id = ?", [
@@ -1163,7 +1174,7 @@ app.post("/users", authRequired, ownerOnly, async (req, res) => {
 app.put("/users/:id", authRequired, ownerOnly, async (req, res) => {
   const tenantId = req.user.tenant_id;
   const id = toInt(req.params.id, 0);
-  if (!id) return res.status(400).json({ error: "ID inválido" });
+  if (!id) return res.status(400).json({ error: "ID invalido" });
 
   const { password, role, username } = req.body || {};
   const db = await dbPromise;
@@ -1375,7 +1386,7 @@ app.post("/products", authRequired, async (req, res) => {
 app.put("/products/:id", authRequired, async (req, res) => {
   const tenantId = req.user.tenant_id;
   const id = toInt(req.params.id, 0);
-  if (!id) return res.status(400).json({ error: "ID inválido" });
+  if (!id) return res.status(400).json({ error: "ID invalido" });
 
   const p = req.body || {};
   const db = await dbPromise;
@@ -1441,7 +1452,7 @@ app.put("/products/:id", authRequired, async (req, res) => {
 app.put("/products/external/:externalId", authRequired, async (req, res) => {
   const tenantId = req.user.tenant_id;
   const externalId = String(req.params.externalId || "").trim();
-  if (!externalId) return res.status(400).json({ error: "externalId inválido" });
+  if (!externalId) return res.status(400).json({ error: "externalId invalido" });
 
   const p = req.body || {};
   const db = await dbPromise;
@@ -1500,7 +1511,7 @@ app.put("/products/external/:externalId", authRequired, async (req, res) => {
 app.delete("/products/:id", authRequired, async (req, res) => {
   const tenantId = req.user.tenant_id;
   const id = toInt(req.params.id, 0);
-  if (!id) return res.status(400).json({ error: "ID inválido" });
+  if (!id) return res.status(400).json({ error: "ID invalido" });
 
   const db = await dbPromise;
   await db.run("DELETE FROM products WHERE id = ? AND tenant_id = ?", [id, tenantId]);
@@ -1510,7 +1521,7 @@ app.delete("/products/:id", authRequired, async (req, res) => {
 app.delete("/products/external/:externalId", authRequired, async (req, res) => {
   const tenantId = req.user.tenant_id;
   const externalId = String(req.params.externalId || "").trim();
-  if (!externalId) return res.status(400).json({ error: "externalId inválido" });
+  if (!externalId) return res.status(400).json({ error: "externalId invalido" });
 
   const db = await dbPromise;
   await db.run("DELETE FROM products WHERE externalId = ? AND tenant_id = ?", [
@@ -1607,7 +1618,7 @@ app.post("/orders", authOptional, async (req, res) => {
 app.put("/orders/:id/status", authRequired, async (req, res) => {
   const tenantId = req.user.tenant_id;
   const id = toInt(req.params.id, 0);
-  if (!id) return res.status(400).json({ error: "ID inválido" });
+  if (!id) return res.status(400).json({ error: "ID invalido" });
 
   const estado = (req.body?.estado || "").toLowerCase();
   if (!estado) return res.status(400).json({ error: "Estado requerido" });
@@ -1628,7 +1639,7 @@ app.put("/orders/:id/status", authRequired, async (req, res) => {
 app.put("/orders/external/:externalId/status", authRequired, async (req, res) => {
   const tenantId = req.user.tenant_id;
   const externalId = String(req.params.externalId || "").trim();
-  if (!externalId) return res.status(400).json({ error: "externalId inválido" });
+  if (!externalId) return res.status(400).json({ error: "externalId invalido" });
 
   const estado = (req.body?.estado || "").toLowerCase();
   if (!estado) return res.status(400).json({ error: "Estado requerido" });
@@ -1837,7 +1848,7 @@ app.delete("/sales", authRequired, ownerOnly, async (req, res) => {
 });
 
 /* ============================
-   Reseñas
+   Resenas
 ============================ */
 app.get("/reviews", authOptional, async (req, res) => {
   const tenantId = getRequestTenantId(req);

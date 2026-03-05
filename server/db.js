@@ -16,9 +16,9 @@ const DEFAULT_TENANT_CODE = "default";
 const DEFAULT_BRANDING = Object.freeze({
   display_name: "WISAND",
   logo_url: "",
-  primary_color: "#0b63d0",
+  primary_color: "#18b7e5",
   secondary_color: "#0f172a",
-  accent_color: "#ff7a18",
+  accent_color: "#2f6df6",
 });
 
 function replacePlaceholders(sql) {
@@ -102,9 +102,9 @@ async function applySqliteMultiTenantMigration(db) {
       tenant_id INTEGER NOT NULL UNIQUE,
       display_name TEXT NOT NULL DEFAULT 'WISAND',
       logo_url TEXT,
-      primary_color TEXT NOT NULL DEFAULT '#0b63d0',
+      primary_color TEXT NOT NULL DEFAULT '#18b7e5',
       secondary_color TEXT NOT NULL DEFAULT '#0f172a',
-      accent_color TEXT NOT NULL DEFAULT '#ff7a18',
+      accent_color TEXT NOT NULL DEFAULT '#2f6df6',
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
@@ -113,9 +113,9 @@ async function applySqliteMultiTenantMigration(db) {
     "ALTER TABLE tenants ADD COLUMN code TEXT;",
     "ALTER TABLE tenant_branding ADD COLUMN display_name TEXT NOT NULL DEFAULT 'WISAND';",
     "ALTER TABLE tenant_branding ADD COLUMN logo_url TEXT;",
-    "ALTER TABLE tenant_branding ADD COLUMN primary_color TEXT NOT NULL DEFAULT '#0b63d0';",
+    "ALTER TABLE tenant_branding ADD COLUMN primary_color TEXT NOT NULL DEFAULT '#18b7e5';",
     "ALTER TABLE tenant_branding ADD COLUMN secondary_color TEXT NOT NULL DEFAULT '#0f172a';",
-    "ALTER TABLE tenant_branding ADD COLUMN accent_color TEXT NOT NULL DEFAULT '#ff7a18';",
+    "ALTER TABLE tenant_branding ADD COLUMN accent_color TEXT NOT NULL DEFAULT '#2f6df6';",
     "ALTER TABLE tenant_branding ADD COLUMN updated_at TEXT DEFAULT CURRENT_TIMESTAMP;",
     "ALTER TABLE products ADD COLUMN externalId TEXT;",
     "ALTER TABLE orders ADD COLUMN externalId TEXT;",
@@ -222,18 +222,18 @@ async function applyPostgresMultiTenantMigration(pool) {
       tenant_id BIGINT NOT NULL UNIQUE,
       display_name TEXT NOT NULL DEFAULT 'WISAND',
       logo_url TEXT,
-      primary_color TEXT NOT NULL DEFAULT '#0b63d0',
+      primary_color TEXT NOT NULL DEFAULT '#18b7e5',
       secondary_color TEXT NOT NULL DEFAULT '#0f172a',
-      accent_color TEXT NOT NULL DEFAULT '#ff7a18',
+      accent_color TEXT NOT NULL DEFAULT '#2f6df6',
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     `,
     "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS code TEXT;",
     "ALTER TABLE tenant_branding ADD COLUMN IF NOT EXISTS display_name TEXT NOT NULL DEFAULT 'WISAND';",
     "ALTER TABLE tenant_branding ADD COLUMN IF NOT EXISTS logo_url TEXT;",
-    "ALTER TABLE tenant_branding ADD COLUMN IF NOT EXISTS primary_color TEXT NOT NULL DEFAULT '#0b63d0';",
+    "ALTER TABLE tenant_branding ADD COLUMN IF NOT EXISTS primary_color TEXT NOT NULL DEFAULT '#18b7e5';",
     "ALTER TABLE tenant_branding ADD COLUMN IF NOT EXISTS secondary_color TEXT NOT NULL DEFAULT '#0f172a';",
-    "ALTER TABLE tenant_branding ADD COLUMN IF NOT EXISTS accent_color TEXT NOT NULL DEFAULT '#ff7a18';",
+    "ALTER TABLE tenant_branding ADD COLUMN IF NOT EXISTS accent_color TEXT NOT NULL DEFAULT '#2f6df6';",
     "ALTER TABLE tenant_branding ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS externalId TEXT;",
     "ALTER TABLE orders ADD COLUMN IF NOT EXISTS externalId TEXT;",
@@ -261,9 +261,9 @@ async function applyPostgresMultiTenantMigration(pool) {
       t.id,
       COALESCE(NULLIF(BTRIM(t.name), ''), 'WISAND'),
       '',
-      '#0b63d0',
+      '#18b7e5',
       '#0f172a',
-      '#ff7a18',
+      '#2f6df6',
       CURRENT_TIMESTAMP
     FROM tenants t
     LEFT JOIN tenant_branding b ON b.tenant_id = t.id
@@ -399,9 +399,9 @@ async function initSqlite() {
       tenant_id INTEGER NOT NULL UNIQUE,
       display_name TEXT NOT NULL DEFAULT 'WISAND',
       logo_url TEXT,
-      primary_color TEXT NOT NULL DEFAULT '#0b63d0',
+      primary_color TEXT NOT NULL DEFAULT '#18b7e5',
       secondary_color TEXT NOT NULL DEFAULT '#0f172a',
-      accent_color TEXT NOT NULL DEFAULT '#ff7a18',
+      accent_color TEXT NOT NULL DEFAULT '#2f6df6',
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -521,9 +521,9 @@ async function initPostgres() {
       tenant_id BIGINT NOT NULL UNIQUE,
       display_name TEXT NOT NULL DEFAULT 'WISAND',
       logo_url TEXT,
-      primary_color TEXT NOT NULL DEFAULT '#0b63d0',
+      primary_color TEXT NOT NULL DEFAULT '#18b7e5',
       secondary_color TEXT NOT NULL DEFAULT '#0f172a',
-      accent_color TEXT NOT NULL DEFAULT '#ff7a18',
+      accent_color TEXT NOT NULL DEFAULT '#2f6df6',
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     `,

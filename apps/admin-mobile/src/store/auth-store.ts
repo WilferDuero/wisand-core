@@ -22,6 +22,26 @@ interface AuthState {
   consumeAuthNotice: () => void;
 }
 
+const normalizeTenantCode = (value: string | null | undefined) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+const syncBrandingWithTenant = async (tenantCode: string | null | undefined) => {
+  const normalizedCode = normalizeTenantCode(tenantCode);
+  if (!normalizedCode) {
+    await useBrandingStore.getState().resetBranding();
+    return;
+  }
+  try {
+    await useBrandingStore.getState().loadBrandingByCode(normalizedCode);
+  } catch {
+    await useBrandingStore.getState().resetBranding();
+  }
+};
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   status: "checking",
   user: null,
@@ -40,16 +60,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const token = await tokenStorage.get();
       if (!token) {
         setActivePushToken(null);
+        await useBrandingStore.getState().resetBranding();
         set({ status: "unauthenticated", user: null, token: null, authNotice: null });
         return;
       }
 
       set({ token });
       const user = await fetchAuthMe();
+      await syncBrandingWithTenant(user?.tenant_code);
       set({ status: "authenticated", user, token, authNotice: null });
     } catch {
       setActivePushToken(null);
       await tokenStorage.clear();
+      await useBrandingStore.getState().resetBranding();
       set({ status: "unauthenticated", user: null, token: null });
     } finally {
       set({ isBootstrapping: false });
@@ -61,6 +84,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const result = await loginAdmin(username, password, tenantCode);
       await tokenStorage.set(result.token);
+      await syncBrandingWithTenant(result.user?.tenant_code || tenantCode);
       set({
         status: "authenticated",
         token: result.token,

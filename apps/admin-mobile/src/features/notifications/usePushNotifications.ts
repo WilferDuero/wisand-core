@@ -184,8 +184,10 @@ export const usePushNotifications = () => {
           clearRetry();
         }
       } catch (error) {
+        const status = Number((error as { status?: number } | null)?.status || 0);
+        const isRetryable = !status || status >= 500;
         console.warn("push register error", error);
-        if (!canceled) {
+        if (!canceled && isRetryable) {
           scheduleRetry();
         }
       }
