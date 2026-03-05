@@ -991,7 +991,8 @@ async function deleteProductFromCatalog(product, triggerButton = null) {
     return;
   }
 
-  const id = Number(product?.id) || 0;
+  const externalId = normalizeScannedCode(product?.externalId || "");
+  const id = externalId ? 0 : Number(product?.id) || 0;
   const code = normalizeScannedCode(productCode(product));
   const name = String(product?.nombre || "Producto").trim() || "Producto";
   const label = code ? `${name} (${code})` : `${name} (id ${id})`;
@@ -1008,7 +1009,9 @@ async function deleteProductFromCatalog(product, triggerButton = null) {
   }
 
   try {
-    if (id > 0) {
+    if (externalId) {
+      await request(`/products/external/${encodeURIComponent(externalId)}`, { method: "DELETE" });
+    } else if (id > 0) {
       await request(`/products/${id}`, { method: "DELETE" });
     } else if (code) {
       await request(`/products/external/${encodeURIComponent(code)}`, { method: "DELETE" });
@@ -1744,26 +1747,28 @@ function bindEvents() {
   });
 
   el.productsTableBody.addEventListener("click", (event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
+    const rawTarget = event.target;
+    if (!(rawTarget instanceof Element)) return;
+    const button = rawTarget.closest("button");
+    if (!(button instanceof HTMLElement)) return;
 
-    if (target.classList.contains("add-product-btn")) {
-      const code = String(target.dataset.code || "");
+    if (button.classList.contains("add-product-btn")) {
+      const code = String(button.dataset.code || "");
       const product = findProductByCode(code);
       if (product) addProductToCart(product);
       return;
     }
 
-    if (target.classList.contains("remove-product-btn")) {
-      const code = String(target.dataset.code || "");
-      const id = Number(target.dataset.id || 0);
+    if (button.classList.contains("remove-product-btn")) {
+      const code = String(button.dataset.code || "");
+      const id = Number(button.dataset.id || 0);
       const product =
         findProductByCode(code) || state.products.find((item) => Number(item.id) === id) || null;
       if (!product) {
         setFeedback(el.saleFeedback, "Producto no encontrado para eliminar.", "error");
         return;
       }
-      void deleteProductFromCatalog(product, target);
+      void deleteProductFromCatalog(product, button);
     }
   });
 
