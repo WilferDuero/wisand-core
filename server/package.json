@@ -10,9 +10,15 @@
     "test:multitenant": "node scripts/test-multitenant.js",
     "import:renacer": "node scripts/import-renacer-remote.js",
     "check:golive": "node scripts/go-live-check.js",
-    "tenant:create": "node scripts/create-tenant.js"
+    "tenant:create": "node scripts/create-tenant.js",
+    "owner:create": "node scripts/create-super-owner.js"
   },
-  "keywords": ["wisand", "multi-tenant", "business-platform", "saas"],
+  "keywords": [
+    "wisand",
+    "multi-tenant",
+    "business-platform",
+    "saas"
+  ],
   "author": "Wilfer Duero",
   "license": "ISC",
   "type": "commonjs",

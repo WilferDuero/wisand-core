@@ -23,6 +23,7 @@ import { useBrandTheme } from "../providers/BrandingProvider";
 import { getActivePushToken } from "../lib/push-session";
 import { useAuthStore } from "../store/auth-store";
 import { InAppAlert, useSyncStore } from "../store/sync-store";
+import { AuthUser } from "../types/domain";
 import { AdminTabParamList, RootStackParamList } from "./types";
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -48,11 +49,17 @@ const getAlertDestinationTab = (alert: InAppAlert): keyof AdminTabParamList | nu
   return null;
 };
 
+const isSuperOwnerWisand = (user: AuthUser | null | undefined) =>
+  String(user?.role || "").toLowerCase() === "owner" &&
+  String(user?.tenant_code || "").trim().toLowerCase() === "wisand";
+
 const HeaderActions = () => {
   const theme = useBrandTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const navigation = useNavigation<BottomTabNavigationProp<AdminTabParamList>>();
+  const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
+  const triggerSync = useSyncStore((state) => state.triggerSync);
   const inAppAlerts = useSyncStore((state) => state.inAppAlerts);
   const dismissInAppAlert = useSyncStore((state) => state.dismissInAppAlert);
   const clearInAppAlerts = useSyncStore((state) => state.clearInAppAlerts);
@@ -62,6 +69,7 @@ const HeaderActions = () => {
     () => (alertsCount === 1 ? "1 alerta nueva" : `${alertsCount} alertas nuevas`),
     [alertsCount]
   );
+  const canUseTechControls = isSuperOwnerWisand(user);
   const onOpenAlert = (alert: InAppAlert) => {
     const destinationTab = getAlertDestinationTab(alert);
     if (!destinationTab) {
@@ -87,6 +95,11 @@ const HeaderActions = () => {
             </View>
           ) : null}
         </Pressable>
+        {canUseTechControls ? (
+          <Pressable style={styles.syncButton} onPress={triggerSync}>
+            <Text style={styles.syncButtonLabel}>Sincronizar</Text>
+          </Pressable>
+        ) : null}
         <Pressable style={styles.logoutButton} onPress={() => void logout()}>
           <Text style={styles.logoutButtonLabel}>Salir</Text>
         </Pressable>
@@ -362,6 +375,19 @@ const createStyles = (theme: AppTheme) =>
     color: theme.colors.white,
     fontSize: 9,
     fontWeight: "900",
+  },
+  syncButton: {
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
+    borderRadius: theme.radius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  syncButtonLabel: {
+    color: theme.colors.white,
+    fontWeight: "700",
+    fontSize: 12,
   },
   logoutButton: {
     backgroundColor: "rgba(239,68,68,0.85)",

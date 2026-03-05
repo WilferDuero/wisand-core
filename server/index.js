@@ -757,11 +757,27 @@ app.post("/auth/login", async (req, res) => {
 app.get("/auth/me", authRequired, async (req, res) => {
   const db = await dbPromise;
   const user = await db.get(
-    "SELECT id, tenant_id, username, role FROM users WHERE id = ? AND tenant_id = ?",
+    `
+    SELECT
+      u.id,
+      u.tenant_id,
+      t.code AS tenant_code,
+      u.username,
+      u.role
+    FROM users u
+    LEFT JOIN tenants t ON t.id = u.tenant_id
+    WHERE u.id = ? AND u.tenant_id = ?
+  `,
     [req.user.id, req.user.tenant_id]
   );
-  if (!user) return res.status(401).json({ error: "Usuario inválido" });
-  res.json(user);
+  if (!user) return res.status(401).json({ error: "Usuario invalido" });
+  res.json({
+    id: user.id,
+    tenant_id: toTenantId(pick(user, "tenant_id", "tenantId"), req.user.tenant_id),
+    tenant_code: normalizeTenantCode(pick(user, "tenant_code", "tenantCode")) || null,
+    username: user.username,
+    role: user.role,
+  });
 });
 
 app.get("/tenants/:code/branding", async (req, res) => {

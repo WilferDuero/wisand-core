@@ -22,7 +22,7 @@ import { computeSalesRevenueSummary } from "../../lib/sales-metrics";
 import { AdminTabParamList } from "../../navigation/types";
 import { useAuthStore } from "../../store/auth-store";
 import { InAppAlert, useSyncStore } from "../../store/sync-store";
-import { Product, Sale } from "../../types/domain";
+import { AuthUser, Product, Sale } from "../../types/domain";
 
 interface DashboardState {
   products: number;
@@ -247,10 +247,17 @@ const getAlertDestinationTab = (alert: InAppAlert): keyof AdminTabParamList | nu
   return null;
 };
 
+const isSuperOwnerWisand = (user: AuthUser | null | undefined) =>
+  String(user?.role || "").toLowerCase() === "owner" &&
+  String(user?.tenant_code || "").trim().toLowerCase() === "wisand";
+
 export const DashboardScreen = () => {
-  const role = useAuthStore((state) => state.user?.role ?? "staff");
+  const authUser = useAuthStore((state) => state.user);
+  const role = authUser?.role ?? "staff";
   const navigation = useNavigation<BottomTabNavigationProp<AdminTabParamList>>();
   const syncTick = useSyncStore((state) => state.syncTick);
+  const triggerSync = useSyncStore((state) => state.triggerSync);
+  const lastManualSyncAt = useSyncStore((state) => state.lastManualSyncAt);
   const lastAutoSyncAt = useSyncStore((state) => state.lastAutoSyncAt);
   const autoSyncEnabled = useSyncStore((state) => state.autoSyncEnabled);
   const setAutoSyncEnabled = useSyncStore((state) => state.setAutoSyncEnabled);
@@ -391,6 +398,7 @@ export const DashboardScreen = () => {
       ? formatCurrencyCOP(Number(state[key]) || 0)
       : String(state[key]);
   const autoSyncSeconds = Math.round(ENV.autoSyncIntervalMs / 1000);
+  const canUseTechControls = isSuperOwnerWisand(authUser);
 
   const onOpenAlert = (alert: InAppAlert) => {
     const destinationTab = getAlertDestinationTab(alert);
@@ -433,6 +441,14 @@ export const DashboardScreen = () => {
             <Ionicons name="shield-checkmark-outline" size={13} color={theme.colors.primaryStrong} />
             <Text style={styles.metaPillText}>Rol: {role}</Text>
           </View>
+          {canUseTechControls ? (
+            <View style={styles.metaPill}>
+              <Ionicons name="link-outline" size={13} color={theme.colors.primaryStrong} />
+              <Text style={styles.metaPillText} numberOfLines={1}>
+                API: {ENV.apiBaseUrl}
+              </Text>
+            </View>
+          ) : null}
         </View>
         <View style={styles.autoSyncRow}>
           <View style={styles.autoSyncTextBlock}>
@@ -456,6 +472,14 @@ export const DashboardScreen = () => {
             onPress={() => void onRefreshDashboard()}
             disabled={refreshing}
           />
+        ) : null}
+        {canUseTechControls ? (
+          <ActionButton label="Sincronizar ahora" onPress={triggerSync} />
+        ) : null}
+        {canUseTechControls && lastManualSyncAt ? (
+          <Text style={styles.syncLabel}>
+            Ultima sync manual: {formatDateTime(lastManualSyncAt)}
+          </Text>
         ) : null}
         {lastAutoSyncAt ? (
           <Text style={styles.syncLabel}>
@@ -558,7 +582,7 @@ export const DashboardScreen = () => {
                 <View style={styles.noRotationInfo}>
                   <Text style={styles.noRotationName}>{item.nombre}</Text>
                   <Text style={styles.noRotationMeta}>
-                    {item.categoria} · Stock cajas: {item.stockCajas}
+                    {item.categoria} - Stock cajas: {item.stockCajas}
                   </Text>
                   <Text style={styles.noRotationMeta}>
                     {item.lastSoldAt
@@ -874,3 +898,4 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
+

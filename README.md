@@ -36,6 +36,19 @@ npm --prefix apps/admin-mobile run typecheck
 npm --prefix apps/admin-mobile run start
 ```
 
+## Acceso owner WISAND
+
+Para crear/actualizar tu acceso interno como dueno de la app (separado de clientes):
+
+```bash
+npm --prefix server run owner:create -- --username "tu_usuario" --password "TuClaveSegura"
+```
+
+Login en app movil:
+- codigo de empresa: `wisand`
+- usuario: el que definiste
+- contrasena: la que definiste
+
 ## Multi-tenant (resumen)
 
 - Tabla `tenants`.
