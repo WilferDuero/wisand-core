@@ -5,7 +5,7 @@ import { useEffect } from "react";
 import { AppState, Platform } from "react-native";
 import { registerPushDevice } from "../../api/modules/notifications";
 import { ENV } from "../../config/env";
-import { setActivePushToken } from "../../lib/push-session";
+import { getActivePushToken, setActivePushToken } from "../../lib/push-session";
 import { useAuthStore } from "../../store/auth-store";
 import { useSyncStore } from "../../store/sync-store";
 
@@ -117,6 +117,21 @@ const registerDevicePushToken = async () => {
 };
 
 const PUSH_REGISTER_RETRY_MS = 15_000;
+const PUSH_WARN_THROTTLE_MS = 30_000;
+
+let lastRegisteredPushKey: string | null = null;
+let lastWarnKey = "";
+let lastWarnAt = 0;
+
+const warnPushThrottled = (key: string, label: string, error: unknown) => {
+  const now = Date.now();
+  if (key === lastWarnKey && now - lastWarnAt < PUSH_WARN_THROTTLE_MS) {
+    return;
+  }
+  lastWarnKey = key;
+  lastWarnAt = now;
+  console.warn(label, error);
+};
 
 const pushAlertFromNotification = (
   pushInAppAlert: ReturnType<typeof useSyncStore.getState>["pushInAppAlert"],
@@ -148,6 +163,7 @@ export const usePushNotifications = () => {
   useEffect(() => {
     if (authStatus !== "authenticated" || !userId) {
       setActivePushToken(null);
+      lastRegisteredPushKey = null;
       return;
     }
 
@@ -167,26 +183,49 @@ export const usePushNotifications = () => {
     };
 
     const register = async () => {
+      let candidateToken: string | null = null;
       try {
-        const token = await registerDevicePushToken();
-        if (!token || canceled) {
+        candidateToken = await registerDevicePushToken();
+        if (!candidateToken || canceled) {
           if (!canceled) {
             scheduleRetry();
           }
           return;
         }
+
+        const registrationKey = `${userId}:${candidateToken}`;
+        if (
+          getActivePushToken() === candidateToken
+          && lastRegisteredPushKey === registrationKey
+        ) {
+          clearRetry();
+          return;
+        }
+
         await registerPushDevice({
-          token,
+          token: candidateToken,
           platform: Platform.OS,
         });
+
         if (!canceled) {
-          setActivePushToken(token);
+          setActivePushToken(candidateToken);
+          lastRegisteredPushKey = registrationKey;
           clearRetry();
         }
       } catch (error) {
         const status = Number((error as { status?: number } | null)?.status || 0);
-        const isRetryable = !status || status >= 500;
-        console.warn("push register error", error);
+        const isConflict = status === 409;
+        const isRetryable = !status || status >= 500 || status === 429;
+
+        if (isConflict && candidateToken && !canceled) {
+          setActivePushToken(candidateToken);
+          lastRegisteredPushKey = `${userId}:${candidateToken}`;
+          clearRetry();
+          warnPushThrottled("push-register-conflict", "push register conflict", error);
+          return;
+        }
+
+        warnPushThrottled(`push-register-${status || "network"}`, "push register error", error);
         if (!canceled && isRetryable) {
           scheduleRetry();
         }
