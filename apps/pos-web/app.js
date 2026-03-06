@@ -100,6 +100,8 @@ const el = {
   scanInput: document.getElementById("scan-input"),
   refreshProductsBtn: document.getElementById("refresh-products-btn"),
   newProductBtn: document.getElementById("new-product-btn"),
+  importCsvBtn: document.getElementById("import-csv-btn"),
+  importCsvInput: document.getElementById("import-csv-input"),
   productsTableBody: document.getElementById("products-table-body"),
 
   cartItems: document.getElementById("cart-items"),
@@ -1063,6 +1065,7 @@ function setAuthView(loggedIn) {
   el.posView.classList.toggle("hidden", !loggedIn);
   el.logoutBtn.classList.toggle("hidden", !loggedIn);
   if (el.newProductBtn) el.newProductBtn.classList.toggle("hidden", !loggedIn || !isOwnerSession());
+  if (el.importCsvBtn) el.importCsvBtn.classList.toggle("hidden", !loggedIn || !isOwnerSession());
 
   if (loggedIn && state.user) {
     el.sessionUser.textContent = `${state.user.username} - ${state.user.role} - ${state.tenantCode}`;
@@ -1192,7 +1195,7 @@ async function deleteProductFromCatalog(product, triggerButton = null) {
   const name = String(product?.nombre || "Producto").trim() || "Producto";
   const label = code ? `${name} (${code})` : `${name} (id ${id})`;
 
-  const confirmed = window.confirm(`Vas a eliminar ${label}. Esta accion no se puede deshacer. �Continuar?`);
+  const confirmed = window.confirm(`Vas a eliminar ${label}. Esta accion no se puede deshacer. ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¿ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â½Continuar?`);
   if (!confirmed) {
     setFeedback(el.saleFeedback, "Eliminacion cancelada.", "");
     focusScanInput();
@@ -1304,6 +1307,273 @@ function parseNumberInput(rawValue) {
   if (!cleaned) return Number.NaN;
   return Number(cleaned);
 }
+
+function normalizeImportHeader(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function detectCsvDelimiter(line) {
+  const candidates = [",", ";", "\t", "|"];
+  let best = ",";
+  let bestCount = -1;
+
+  candidates.forEach((delimiter) => {
+    const count = String(line || "").split(delimiter).length - 1;
+    if (count > bestCount) {
+      bestCount = count;
+      best = delimiter;
+    }
+  });
+
+  return best;
+}
+
+function parseCsvLine(line, delimiter) {
+  const output = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (ch === delimiter && !inQuotes) {
+      output.push(current.trim());
+      current = "";
+      continue;
+    }
+
+    current += ch;
+  }
+
+  output.push(current.trim());
+  return output;
+}
+
+const IMPORT_FIELD_ALIASES = new Map([
+  ["codigo", "codigo"],
+  ["code", "codigo"],
+  ["externalid", "codigo"],
+  ["id", "codigo"],
+  ["codigobarras", "codigo"],
+  ["barcode", "codigo"],
+  ["nombre", "nombre"],
+  ["producto", "nombre"],
+  ["name", "nombre"],
+  ["categoria", "categoria"],
+  ["category", "categoria"],
+  ["preciocaja", "precioCaja"],
+  ["preciocajacop", "precioCaja"],
+  ["pricebox", "precioCaja"],
+  ["caja", "precioCaja"],
+  ["preciosobre", "precioSobre"],
+  ["preciosobrecop", "precioSobre"],
+  ["pricesobre", "precioSobre"],
+  ["sobre", "precioSobre"],
+  ["preciounidad", "precioUnidad"],
+  ["preciounidadcop", "precioUnidad"],
+  ["priceunit", "precioUnidad"],
+  ["unidad", "precioUnidad"],
+  ["sobresxcaja", "sobresXCaja"],
+  ["sobresporcaja", "sobresXCaja"],
+  ["unidadesxsobre", "unidadesXSobre"],
+  ["unidadesporsobre", "unidadesXSobre"],
+  ["stockcajas", "stockCajas"],
+  ["stock", "stockCajas"],
+  ["stockinicial", "stockCajas"],
+]);
+
+function mapCsvHeaderRow(headerCells) {
+  return headerCells.map((cell) => IMPORT_FIELD_ALIASES.get(normalizeImportHeader(cell)) || null);
+}
+
+function parseProductsCsv(text) {
+  const source = String(text || "").replace(/^\uFEFF/, "");
+  const lines = source
+    .split(/\r?\n/)
+    .map((line) => String(line || "").trim())
+    .filter((line) => line.length > 0);
+
+  if (lines.length < 2) {
+    return { rows: [], errors: ["CSV vacio o sin filas de datos."] };
+  }
+
+  const delimiter = detectCsvDelimiter(lines[0]);
+  const headerCells = parseCsvLine(lines[0], delimiter);
+  const mappedHeader = mapCsvHeaderRow(headerCells);
+
+  if (!mappedHeader.includes("codigo") || !mappedHeader.includes("nombre")) {
+    return {
+      rows: [],
+      errors: ["El CSV debe incluir encabezados de codigo y nombre."],
+    };
+  }
+
+  const rows = [];
+  const errors = [];
+
+  for (let i = 1; i < lines.length; i += 1) {
+    const cells = parseCsvLine(lines[i], delimiter);
+    const data = {};
+
+    mappedHeader.forEach((field, idx) => {
+      if (!field) return;
+      const value = String(cells[idx] || "").trim();
+      if (!value) return;
+      if (!data[field]) data[field] = value;
+    });
+
+    const lineNo = i + 1;
+    const code = normalizeScannedCode(data.codigo || "");
+    const nombre = String(data.nombre || "").trim();
+
+    if (!code || !nombre) {
+      errors.push("Linea " + lineNo + ": codigo y nombre son requeridos.");
+      continue;
+    }
+
+    const toRounded = (value, fallback = 0) => {
+      const raw = String(value || "").trim();
+      if (!raw) return fallback;
+      const parsed = parseNumberInput(raw);
+      if (!Number.isFinite(parsed)) return Number.NaN;
+      return Math.max(0, Math.round(parsed));
+    };
+
+    const toIntWithMin = (value, fallback, minValue) => {
+      const raw = String(value || "").trim();
+      if (!raw) return fallback;
+      const parsed = parseNumberInput(raw);
+      if (!Number.isFinite(parsed)) return Number.NaN;
+      return Math.max(minValue, Math.floor(parsed));
+    };
+
+    const precioCaja = toRounded(data.precioCaja, 0);
+    const precioSobre = toRounded(data.precioSobre, 0);
+    const precioUnidad = toRounded(data.precioUnidad, 0);
+    const sobresXCaja = toIntWithMin(data.sobresXCaja, 1, 1);
+    const unidadesXSobre = toIntWithMin(data.unidadesXSobre, 1, 1);
+    const stockCajas = toIntWithMin(data.stockCajas, 0, 0);
+
+    if (!Number.isFinite(precioCaja) || !Number.isFinite(precioSobre) || !Number.isFinite(precioUnidad)) {
+      errors.push("Linea " + lineNo + ": precios invalidos.");
+      continue;
+    }
+
+    if (precioCaja <= 0 && precioSobre <= 0 && precioUnidad <= 0) {
+      errors.push("Linea " + lineNo + ": define al menos un precio mayor que 0.");
+      continue;
+    }
+
+    if (!Number.isFinite(sobresXCaja) || !Number.isFinite(unidadesXSobre) || !Number.isFinite(stockCajas)) {
+      errors.push("Linea " + lineNo + ": conversiones o stock invalidos.");
+      continue;
+    }
+
+    rows.push({
+      lineNo,
+      payload: {
+        externalId: code,
+        nombre,
+        categoria: String(data.categoria || "").trim() || "General",
+        disponibilidad: "Disponible",
+        precioCaja,
+        precioSobre,
+        precioUnidad,
+        sobresXCaja,
+        unidadesXSobre,
+        stockCajas,
+        descripcion: "",
+        imagen: "",
+        ofertaActiva: false,
+        ofertaTexto: "",
+        ofertaPrecioCaja: 0,
+        ofertaPrecioSobre: 0,
+      },
+    });
+  }
+
+  return { rows, errors };
+}
+
+async function importProductsFromCsvText(csvText, sourceLabel = "archivo.csv") {
+  if (!isOwnerSession()) {
+    setFeedback(el.saleFeedback, "Solo owner puede importar productos.", "error");
+    return;
+  }
+
+  const parsed = parseProductsCsv(csvText);
+  if (!parsed.rows.length) {
+    const msg = parsed.errors.length
+      ? "No se pudo importar " + sourceLabel + ": " + parsed.errors.slice(0, 3).join(" | ")
+      : "No se encontraron filas validas en " + sourceLabel + ".";
+    setFeedback(el.saleFeedback, msg, "error");
+    return;
+  }
+
+  if (el.importCsvBtn) {
+    setBusy(el.importCsvBtn, true, "Importando...", "Importar CSV");
+  }
+
+  let created = 0;
+  let updated = 0;
+  let failed = 0;
+  const runtimeErrors = [];
+
+  try {
+    for (const row of parsed.rows) {
+      try {
+        const response = await request("/products", {
+          method: "POST",
+          body: row.payload,
+        });
+        if (response && response.updated) updated += 1;
+        else created += 1;
+      } catch (error) {
+        failed += 1;
+        if (runtimeErrors.length < 10) {
+          runtimeErrors.push("L" + row.lineNo + ": " + error.message);
+        }
+      }
+    }
+
+    await loadProducts();
+
+    const preErrors = parsed.errors.length;
+    const totalFailed = failed + preErrors;
+    let message = "Importacion " + sourceLabel + ": " + created + " creados, " + updated + " actualizados";
+    if (totalFailed > 0) {
+      const allErrors = parsed.errors.slice(0, 5).concat(runtimeErrors);
+      message += ", " + totalFailed + " con error. " + allErrors.slice(0, 6).join(" | ");
+      setFeedback(el.saleFeedback, message, "error");
+    } else {
+      setFeedback(el.saleFeedback, message + ".", "success");
+    }
+  } finally {
+    if (el.importCsvBtn) {
+      setBusy(el.importCsvBtn, false, "Importando...", "Importar CSV");
+    }
+    if (el.importCsvInput) {
+      el.importCsvInput.value = "";
+    }
+    focusScanInput();
+  }
+}
+
 function normalizeScannedCode(rawValue) {
   return String(rawValue || "")
     .replace(/[\u0000-\u001F\u007F]/g, "")
@@ -2172,6 +2442,35 @@ function bindEvents() {
         return;
       }
       openQuickCreateModal("");
+    });
+  }
+
+  if (el.importCsvBtn) {
+    el.importCsvBtn.addEventListener("click", () => {
+      if (!isOwnerSession()) {
+        setFeedback(el.saleFeedback, "Solo owner puede importar productos.", "error");
+        return;
+      }
+      if (!el.importCsvInput) {
+        setFeedback(el.saleFeedback, "No se encontro input de archivo CSV.", "error");
+        return;
+      }
+      el.importCsvInput.value = "";
+      el.importCsvInput.click();
+    });
+  }
+
+  if (el.importCsvInput) {
+    el.importCsvInput.addEventListener("change", async () => {
+      const file = el.importCsvInput.files && el.importCsvInput.files[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        await importProductsFromCsvText(text, file.name || "archivo.csv");
+      } catch (error) {
+        setFeedback(el.saleFeedback, `No se pudo leer/importar CSV: ${error.message}`, "error");
+      }
     });
   }
 

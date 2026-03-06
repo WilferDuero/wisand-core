@@ -33,6 +33,23 @@ Abrir en navegador: `http://localhost:3030`
 12. Exportar cierre a CSV.
 13. Guardar cierre en historial del tenant y consultar cierres recientes.
 
+
+## Importacion CSV (solo owner)
+
+Desde el boton `Importar CSV` puedes cargar productos masivo.
+
+Encabezados recomendados:
+
+`codigo,nombre,categoria,precio_caja,precio_sobre,precio_unidad,sobres_x_caja,unidades_x_sobre,stock_cajas`
+
+Ejemplo:
+
+```csv
+codigo,nombre,categoria,precio_caja,precio_sobre,precio_unidad,sobres_x_caja,unidades_x_sobre,stock_cajas
+7701234567890,Ibuprofeno 400mg,Medicamentos,30000,3000,300,10,10,5
+7709876543210,Vitamina C 1000mg,Suplementos,0,0,20000,1,1,8
+```
+
 ## Atajos de teclado
 
 - `F2`: buscar producto
