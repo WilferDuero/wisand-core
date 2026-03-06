@@ -26,6 +26,16 @@ const SHIFT_RANGES = {
   all: { start: "00:00", end: "23:59" },
 };
 
+const DEFAULT_CATEGORY_SUGGESTIONS = [
+  "General",
+  "Medicamentos",
+  "Vitaminas",
+  "Suplementos",
+  "Aseo",
+  "Ferreteria",
+  "Minimarket",
+];
+
 const state = {
   apiBase: "http://localhost:3001",
   tenantCode: "",
@@ -41,6 +51,8 @@ const state = {
   closureSummary: null,
   closureHistory: [],
   quickCreateCode: "",
+  quickModalMode: "create",
+  quickEditProduct: null,
 };
 
 const el = {
@@ -65,12 +77,18 @@ const el = {
   loginFeedback: document.getElementById("login-feedback"),
 
   quickCreateModal: document.getElementById("quick-create-modal"),
+  quickTitle: document.getElementById("quick-create-title"),
   quickForm: document.getElementById("quick-form"),
   quickCode: document.getElementById("quick-code"),
   quickName: document.getElementById("quick-name"),
-  quickPrice: document.getElementById("quick-price"),
-  quickStock: document.getElementById("quick-stock"),
+  quickPriceCaja: document.getElementById("quick-price-caja"),
+  quickPriceSobre: document.getElementById("quick-price-sobre"),
+  quickPriceUnidad: document.getElementById("quick-price-unidad"),
+  quickSobresCaja: document.getElementById("quick-sobres-caja"),
+  quickUnidadesSobre: document.getElementById("quick-unidades-sobre"),
+  quickStockCajas: document.getElementById("quick-stock-cajas"),
   quickCategory: document.getElementById("quick-category"),
+  quickCategoryOptions: document.getElementById("quick-category-options"),
   quickFeedback: document.getElementById("quick-feedback"),
   quickCancelBtn: document.getElementById("quick-cancel-btn"),
   quickCloseBtn: document.getElementById("quick-close-btn"),
@@ -81,6 +99,7 @@ const el = {
   productSearch: document.getElementById("product-search"),
   scanInput: document.getElementById("scan-input"),
   refreshProductsBtn: document.getElementById("refresh-products-btn"),
+  newProductBtn: document.getElementById("new-product-btn"),
   productsTableBody: document.getElementById("products-table-body"),
 
   cartItems: document.getElementById("cart-items"),
@@ -325,15 +344,111 @@ function productCode(product) {
   return String(product.externalId || product.id || "").trim();
 }
 
-function productPrice(product) {
-  const unit = Number(product.precioUnidad) || 0;
-  const sobre = Number(product.precioSobre) || 0;
-  const caja = Number(product.precioCaja) || 0;
-  return unit || sobre || caja;
+function toPositiveInt(value, fallback = 1) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(1, Math.floor(parsed));
+}
+
+function formatQty(value, maxDecimals = 2) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "0";
+  if (Number.isInteger(n)) return String(n);
+  return n.toFixed(maxDecimals).replace(/\.?0+$/, "");
+}
+
+function normalizePresentation(raw) {
+  const value = String(raw || "").trim().toLowerCase();
+  if (["caja", "box", "boxes"].includes(value)) return "caja";
+  if (["sobre", "sobres", "pack"].includes(value)) return "sobre";
+  return "unidad";
+}
+
+function presentationLabel(raw) {
+  const p = normalizePresentation(raw);
+  if (p === "caja") return "Caja";
+  if (p === "sobre") return "Sobre";
+  return "Unidad";
+}
+
+function productUnitsPerCaja(product) {
+  const sobres = toPositiveInt(product?.sobresXCaja, 1);
+  const unidades = toPositiveInt(product?.unidadesXSobre, 1);
+  return sobres * unidades;
 }
 
 function productStock(product) {
-  return Math.max(0, Number(product.stockCajas) || 0);
+  return Math.max(0, Number(product?.stockCajas) || 0);
+}
+
+function productStockUnits(product) {
+  return productStock(product) * productUnitsPerCaja(product);
+}
+
+function presentationUnits(product, rawPresentation) {
+  const presentation = normalizePresentation(rawPresentation);
+  if (presentation === "caja") return productUnitsPerCaja(product);
+  if (presentation === "sobre") return toPositiveInt(product?.unidadesXSobre, 1);
+  return 1;
+}
+
+function presentationPrice(product, rawPresentation) {
+  const presentation = normalizePresentation(rawPresentation);
+  const ofertaActiva = Number(product?.ofertaActiva) === 1 || product?.ofertaActiva === true;
+
+  if (presentation === "caja") {
+    const ofertaCaja = Number(product?.ofertaPrecioCaja) || 0;
+    const baseCaja = Number(product?.precioCaja) || 0;
+    return ofertaActiva && ofertaCaja > 0 ? ofertaCaja : baseCaja;
+  }
+
+  if (presentation === "sobre") {
+    const ofertaSobre = Number(product?.ofertaPrecioSobre) || 0;
+    const baseSobre = Number(product?.precioSobre) || 0;
+    return ofertaActiva && ofertaSobre > 0 ? ofertaSobre : baseSobre;
+  }
+
+  return Number(product?.precioUnidad) || 0;
+}
+
+function presentationOptions(product) {
+  const all = ["unidad", "sobre", "caja"];
+  const options = all
+    .map((value) => {
+      const price = presentationPrice(product, value);
+      return {
+        value,
+        label: presentationLabel(value),
+        price,
+      };
+    })
+    .filter((item) => item.price > 0);
+
+  if (options.length) return options;
+
+  const fallback = Number(product?.precioUnidad) || Number(product?.precioSobre) || Number(product?.precioCaja) || 0;
+  return fallback > 0 ? [{ value: "unidad", label: "Unidad", price: fallback }] : [];
+}
+
+function defaultPresentation(product) {
+  const options = presentationOptions(product);
+  if (!options.length) return "unidad";
+  const preferred = ["unidad", "sobre", "caja"];
+  for (const key of preferred) {
+    if (options.some((item) => item.value === key)) return key;
+  }
+  return options[0].value;
+}
+
+function availableQtyForPresentation(product, rawPresentation) {
+  const perItemUnits = presentationUnits(product, rawPresentation);
+  if (perItemUnits <= 0) return 0;
+  return Math.floor(productStockUnits(product) / perItemUnits);
+}
+
+function productPrice(product) {
+  const presentation = defaultPresentation(product);
+  return presentationPrice(product, presentation);
 }
 
 function stockToneClass(stock) {
@@ -477,26 +592,49 @@ function renderProducts() {
   el.productsTableBody.innerHTML = rows
     .map((product) => {
       const code = productCode(product);
-      const price = productPrice(product);
-      const stock = productStock(product);
-      const stockClass = stockToneClass(stock);
-      const blocked = state.prefs.enforceStock && stock <= 0;
+      const defaultPrice = productPrice(product);
+      const stockBoxes = productStock(product);
+      const stockUnits = productStockUnits(product);
+      const stockClass = stockToneClass(stockBoxes);
+      const options = presentationOptions(product);
+      const hasPrice = options.length > 0;
+      const blockedStock = state.prefs.enforceStock && stockUnits <= 0;
+      const disabled = !hasPrice || blockedStock;
+
+      const selectedPresentation = defaultPresentation(product);
+      const optionsHtml = hasPrice
+        ? options
+            .map((item) => {
+              const selected = item.value === selectedPresentation ? "selected" : "";
+              return `<option value="${item.value}" ${selected}>${item.label} (${money(item.price)})</option>`;
+            })
+            .join("")
+        : `<option value="unidad">Sin precio</option>`;
+
+      const stockMeta = `${formatQty(stockBoxes)} cj / ${formatQty(stockUnits)} und`;
+      const addLabel = !hasPrice ? "Sin precio" : blockedStock ? "Sin stock" : "Agregar";
 
       return `
         <tr>
           <td>${escapeHtml(code || "--")}</td>
           <td>${escapeHtml(product.nombre || "Producto")}</td>
           <td>${escapeHtml(product.categoria || "--")}</td>
-          <td>${money(price)}</td>
-          <td><span class="stock-pill ${stockClass}">${stock}</span></td>
+          <td>${money(defaultPrice)}</td>
+          <td>
+            <span class="stock-pill ${stockClass}">${formatQty(stockBoxes)} cj</span>
+            <span class="stock-meta">${stockMeta}</span>
+          </td>
           <td>
             <div class="row-actions">
-              <button class="btn ghost add-product-btn" data-code="${escapeHtml(code)}" ${blocked ? "disabled" : ""}>
-                ${blocked ? "Sin stock" : "Agregar"}
+              <select class="presentation-select" data-code="${escapeHtml(code)}" ${hasPrice ? "" : "disabled"}>
+                ${optionsHtml}
+              </select>
+              <button class="btn ghost add-product-btn" data-code="${escapeHtml(code)}" ${disabled ? "disabled" : ""}>
+                ${addLabel}
               </button>
               ${
                 isOwnerSession()
-                  ? `<button class="btn ghost danger remove-product-btn" data-id="${Number(product.id) || ""}" data-code="${escapeHtml(code)}">Eliminar</button>`
+                  ? `<button class="btn ghost edit-product-btn" data-id="${Number(product.id) || ""}" data-code="${escapeHtml(code)}">Editar</button><button class="btn ghost danger remove-product-btn" data-id="${Number(product.id) || ""}" data-code="${escapeHtml(code)}">Eliminar</button>`
                   : ""
               }
             </div>
@@ -530,25 +668,33 @@ function renderCart() {
           .map((item) => {
             const subtotal = item.qty * item.price;
             const product = findProductByCode(item.code);
-            const stock = product ? productStock(product) : 0;
-            const cannotIncrease = state.prefs.enforceStock && item.qty >= stock;
+            const presentation = normalizePresentation(item.presentation);
+            const presentationText = presentationLabel(presentation);
+            const stockHint = product
+              ? ` - disp ${availableQtyForPresentation(product, presentation)} ${presentationText.toLowerCase()}(s)`
+              : "";
+            const cannotIncrease = product
+              ? state.prefs.enforceStock &&
+                !canIncreaseQty(product, presentation, item.qty + 1, item.key, { silent: true })
+              : false;
+
             return `
               <tr>
                 <td>
                   <strong>${escapeHtml(item.name)}</strong><br />
-                  <span class="muted">${escapeHtml(item.code)}${state.prefs.enforceStock ? ` - stock ${stock}` : ""}</span>
+                  <span class="muted">${escapeHtml(item.code)} - ${escapeHtml(presentationText)}${state.prefs.enforceStock ? stockHint : ""}</span>
                 </td>
                 <td>
                   <div class="qty-row">
-                    <button type="button" class="qty-btn" data-action="dec" data-code="${escapeHtml(item.code)}">-</button>
+                    <button type="button" class="qty-btn" data-action="dec" data-key="${escapeHtml(item.key)}">-</button>
                     <strong>${item.qty}</strong>
-                    <button type="button" class="qty-btn" data-action="inc" data-code="${escapeHtml(item.code)}" ${cannotIncrease ? "disabled" : ""}>+</button>
+                    <button type="button" class="qty-btn" data-action="inc" data-key="${escapeHtml(item.key)}" ${cannotIncrease ? "disabled" : ""}>+</button>
                   </div>
                 </td>
                 <td>${money(item.price)}</td>
                 <td>${money(subtotal)}</td>
                 <td>
-                  <button type="button" class="btn ghost" data-action="remove" data-code="${escapeHtml(item.code)}">Quitar</button>
+                  <button type="button" class="btn ghost" data-action="remove" data-key="${escapeHtml(item.key)}">Quitar</button>
                 </td>
               </tr>
             `;
@@ -916,6 +1062,7 @@ function setAuthView(loggedIn) {
   el.loginView.classList.toggle("hidden", loggedIn);
   el.posView.classList.toggle("hidden", !loggedIn);
   el.logoutBtn.classList.toggle("hidden", !loggedIn);
+  if (el.newProductBtn) el.newProductBtn.classList.toggle("hidden", !loggedIn || !isOwnerSession());
 
   if (loggedIn && state.user) {
     el.sessionUser.textContent = `${state.user.username} - ${state.user.role} - ${state.tenantCode}`;
@@ -941,41 +1088,89 @@ function clearCart(message = "") {
   focusScanInput();
 }
 
-function canIncreaseQty(product, nextQty) {
+function canIncreaseQty(product, rawPresentation, nextQty, itemKey = "", options = {}) {
+  const silent = !!options?.silent;
   if (!state.prefs.enforceStock) return true;
-  const stock = productStock(product);
-  if (nextQty > stock) {
-    setFeedback(el.saleFeedback, `Stock insuficiente para ${product.nombre || "producto"}.`, "error");
+
+  const code = productCode(product);
+  if (!code) return true;
+
+  const presentation = normalizePresentation(rawPresentation);
+  const stockUnits = productStockUnits(product);
+  const selectedUnitsPerItem = presentationUnits(product, presentation);
+
+  let requestedUnits = 0;
+  for (const item of state.cart) {
+    if (item.code !== code) continue;
+    const unitsPerItem = Math.max(
+      1,
+      Number(item.unitsPerItem) || presentationUnits(product, item.presentation)
+    );
+    const qty = itemKey && item.key === itemKey ? nextQty : item.qty;
+    requestedUnits += Math.max(0, qty) * unitsPerItem;
+  }
+
+  if (!itemKey) {
+    requestedUnits += Math.max(0, nextQty) * selectedUnitsPerItem;
+  }
+
+  if (requestedUnits > stockUnits + 1e-9) {
+    if (!silent) {
+      const maxQty = availableQtyForPresentation(product, presentation);
+      const msg =
+        "Stock insuficiente para " +
+        (product.nombre || "producto") +
+        " en " +
+        presentationLabel(presentation).toLowerCase() +
+        ". Max aprox: " +
+        maxQty +
+        ".";
+      setFeedback(el.saleFeedback, msg, "error");
+    }
     return false;
   }
+
   return true;
 }
 
-function addProductToCart(product) {
+function addProductToCart(product, rawPresentation = "") {
   const code = productCode(product);
   if (!code) return;
 
-  const price = productPrice(product);
+  const presentation = normalizePresentation(rawPresentation || defaultPresentation(product));
+  const unitsPerItem = presentationUnits(product, presentation);
+  const price = presentationPrice(product, presentation);
   if (price <= 0) {
-    setFeedback(el.saleFeedback, "El producto no tiene precio configurado.", "error");
+    const msg =
+      "La presentacion " +
+      presentationLabel(presentation).toLowerCase() +
+      " no tiene precio configurado.";
+    setFeedback(el.saleFeedback, msg, "error");
     return;
   }
 
-  const existing = state.cart.find((item) => item.code === code);
+  const key = code + "::" + presentation;
+  const existing = state.cart.find((item) => item.key === key);
   const nextQty = existing ? existing.qty + 1 : 1;
-  if (!canIncreaseQty(product, nextQty)) {
+  if (!canIncreaseQty(product, presentation, nextQty, existing ? existing.key : "")) {
     return;
   }
 
   if (existing) {
     existing.qty += 1;
+    existing.price = price;
+    existing.unitsPerItem = unitsPerItem;
+    existing.name = String(product.nombre || "Producto");
   } else {
     state.cart.push({
+      key,
       code,
       id: Number(product.id) || null,
       name: String(product.nombre || "Producto"),
+      presentation,
       qty: 1,
       price,
+      unitsPerItem,
     });
   }
 
@@ -997,7 +1192,7 @@ async function deleteProductFromCatalog(product, triggerButton = null) {
   const name = String(product?.nombre || "Producto").trim() || "Producto";
   const label = code ? `${name} (${code})` : `${name} (id ${id})`;
 
-  const confirmed = window.confirm(`Vas a eliminar ${label}. Esta accion no se puede deshacer. ¿Continuar?`);
+  const confirmed = window.confirm(`Vas a eliminar ${label}. Esta accion no se puede deshacer. ï¿½Continuar?`);
   if (!confirmed) {
     setFeedback(el.saleFeedback, "Eliminacion cancelada.", "");
     focusScanInput();
@@ -1038,19 +1233,19 @@ async function deleteProductFromCatalog(product, triggerButton = null) {
   }
 }
 
-function updateCartItem(code, action) {
-  const idx = state.cart.findIndex((item) => item.code === code);
+function updateCartItem(itemKey, action) {
+  const idx = state.cart.findIndex((item) => item.key === itemKey);
   if (idx < 0) return;
 
   const item = state.cart[idx];
-  const product = findProductByCode(code);
+  const product = findProductByCode(item.code);
 
   if (action === "inc") {
     if (!product) {
       setFeedback(el.saleFeedback, "Producto no encontrado para validar stock.", "error");
       return;
     }
-    if (!canIncreaseQty(product, item.qty + 1)) {
+    if (!canIncreaseQty(product, item.presentation, item.qty + 1, item.key)) {
       return;
     }
     item.qty += 1;
@@ -1120,6 +1315,46 @@ function isOwnerSession() {
   return String(state.user?.role || "").trim().toLowerCase() === "owner";
 }
 
+function renderQuickCategoryOptions() {
+  if (!el.quickCategoryOptions) return;
+
+  const seen = new Set();
+  const options = [];
+
+  const addOption = (value) => {
+    const trimmed = String(value || "").trim();
+    const key = trimmed.toLowerCase();
+    if (!trimmed || seen.has(key)) return;
+    seen.add(key);
+    options.push(trimmed);
+  };
+
+  DEFAULT_CATEGORY_SUGGESTIONS.forEach(addOption);
+  state.products.forEach((product) => addOption(product?.categoria));
+
+  el.quickCategoryOptions.innerHTML = options
+    .slice(0, 60)
+    .map((value) => `<option value="${escapeHtml(value)}"></option>`)
+    .join("");
+}
+
+function setQuickModalUi(mode) {
+  const normalizedMode = mode === "edit" ? "edit" : "create";
+  state.quickModalMode = normalizedMode;
+
+  if (el.quickTitle) {
+    el.quickTitle.textContent = normalizedMode === "edit" ? "Editar producto" : "Crear producto rapido";
+  }
+
+  if (el.quickCode) {
+    el.quickCode.readOnly = normalizedMode === "edit";
+  }
+
+  if (el.quickSaveBtn) {
+    el.quickSaveBtn.textContent = normalizedMode === "edit" ? "Guardar cambios" : "Crear y agregar";
+  }
+}
+
 function closeQuickCreateModal(restoreScan = true) {
   if (!el.quickCreateModal) return;
   el.quickCreateModal.classList.add("hidden");
@@ -1127,6 +1362,9 @@ function closeQuickCreateModal(restoreScan = true) {
   if (el.quickFeedback) {
     setFeedback(el.quickFeedback, "", "");
   }
+
+  setQuickModalUi("create");
+  state.quickEditProduct = null;
 
   if (restoreScan && el.scanInput) {
     el.scanInput.value = state.quickCreateCode || "";
@@ -1139,16 +1377,84 @@ function closeQuickCreateModal(restoreScan = true) {
   state.quickCreateCode = "";
 }
 
-function openQuickCreateModal(rawCode) {
-  const code = normalizeScannedCode(rawCode);
-  if (!code || !el.quickCreateModal) return;
+function openQuickCreateModal(rawCode = "") {
+  if (!el.quickCreateModal) return;
+  const scannedCode = normalizeScannedCode(rawCode);
+  const code = scannedCode || `prd-${Date.now().toString(36)}`;
 
-  state.quickCreateCode = code;
-  if (el.quickCode) el.quickCode.value = code;
+  setQuickModalUi("create");
+  state.quickEditProduct = null;
+  state.quickCreateCode = scannedCode;
+
+  if (el.quickCode) {
+    el.quickCode.value = code;
+    el.quickCode.readOnly = false;
+  }
   if (el.quickName) el.quickName.value = `Producto ${code}`;
-  if (el.quickPrice) el.quickPrice.value = "1000";
-  if (el.quickStock) el.quickStock.value = "0";
+  if (el.quickPriceCaja) el.quickPriceCaja.value = "0";
+  if (el.quickPriceSobre) el.quickPriceSobre.value = "0";
+  if (el.quickPriceUnidad) el.quickPriceUnidad.value = "1000";
+  if (el.quickSobresCaja) el.quickSobresCaja.value = "1";
+  if (el.quickUnidadesSobre) el.quickUnidadesSobre.value = "1";
+  if (el.quickStockCajas) el.quickStockCajas.value = "0";
   if (el.quickCategory) el.quickCategory.value = "General";
+  if (el.quickFeedback) setFeedback(el.quickFeedback, "", "");
+
+  el.quickCreateModal.classList.remove("hidden");
+  document.body.classList.add("modal-open");
+
+  setTimeout(() => {
+    if (el.quickName) {
+      el.quickName.focus();
+      el.quickName.select();
+    }
+  }, 0);
+}
+
+function openQuickEditModal(product) {
+  if (!isOwnerSession()) {
+    setFeedback(el.saleFeedback, "Solo owner puede editar productos.", "error");
+    return;
+  }
+
+  if (!product || !el.quickCreateModal) {
+    setFeedback(el.saleFeedback, "Producto no encontrado para editar.", "error");
+    return;
+  }
+
+  setQuickModalUi("edit");
+  state.quickEditProduct = {
+    id: Number(product.id) || 0,
+    externalId: normalizeScannedCode(product.externalId || ""),
+    nombre: String(product.nombre || ""),
+    descripcion: String(product.descripcion || ""),
+    categoria: String(product.categoria || ""),
+    disponibilidad: String(product.disponibilidad || "Disponible"),
+    imagen: String(product.imagen || ""),
+    precioCaja: Number(product.precioCaja) || 0,
+    precioSobre: Number(product.precioSobre) || 0,
+    precioUnidad: Number(product.precioUnidad) || 0,
+    sobresXCaja: Number(product.sobresXCaja) || 1,
+    unidadesXSobre: Number(product.unidadesXSobre) || 1,
+    stockCajas: Number(product.stockCajas) || 0,
+    ofertaActiva: !!product.ofertaActiva,
+    ofertaTexto: String(product.ofertaTexto || ""),
+    ofertaPrecioCaja: Number(product.ofertaPrecioCaja) || 0,
+    ofertaPrecioSobre: Number(product.ofertaPrecioSobre) || 0,
+  };
+
+  const code = normalizeScannedCode(productCode(product));
+  state.quickCreateCode = code;
+
+  if (el.quickCode) el.quickCode.value = code;
+  if (el.quickName) el.quickName.value = String(product.nombre || "Producto");
+  if (el.quickPriceCaja) el.quickPriceCaja.value = String(Math.max(0, Number(product.precioCaja) || 0));
+  if (el.quickPriceSobre) el.quickPriceSobre.value = String(Math.max(0, Number(product.precioSobre) || 0));
+  if (el.quickPriceUnidad) el.quickPriceUnidad.value = String(Math.max(0, Number(product.precioUnidad) || 0));
+  if (el.quickSobresCaja) el.quickSobresCaja.value = String(toPositiveInt(product.sobresXCaja, 1));
+  if (el.quickUnidadesSobre) el.quickUnidadesSobre.value = String(toPositiveInt(product.unidadesXSobre, 1));
+  if (el.quickStockCajas) el.quickStockCajas.value = String(Math.max(0, Math.floor(Number(product.stockCajas) || 0)));
+  if (el.quickCategory) el.quickCategory.value = String(product.categoria || "General");
   if (el.quickFeedback) setFeedback(el.quickFeedback, "", "");
 
   el.quickCreateModal.classList.remove("hidden");
@@ -1180,16 +1486,35 @@ async function submitQuickCreateProduct(event) {
   event.preventDefault();
 
   if (!isOwnerSession()) {
-    if (el.quickFeedback) setFeedback(el.quickFeedback, "Solo owner puede crear productos.", "error");
+    if (el.quickFeedback) setFeedback(el.quickFeedback, "Solo owner puede gestionar productos.", "error");
     return;
   }
 
-  const code = normalizeScannedCode(state.quickCreateCode || el.quickCode?.value || "");
+  const mode = state.quickModalMode === "edit" ? "edit" : "create";
+  const code = normalizeScannedCode(el.quickCode?.value || state.quickCreateCode || "");
   const nombreFinal = String(el.quickName?.value || "").trim();
-  const precioUnidad = parseNumberInput(el.quickPrice?.value || "");
-  const stockParsed = parseNumberInput(el.quickStock?.value || "0");
-  const stockCajas = Number.isFinite(stockParsed) ? Math.max(0, Math.floor(stockParsed)) : 0;
-  const categoria = String(el.quickCategory?.value || "").trim();
+
+  const priceCajaParsed = parseNumberInput(el.quickPriceCaja?.value || "0");
+  const priceSobreParsed = parseNumberInput(el.quickPriceSobre?.value || "0");
+  const priceUnidadParsed = parseNumberInput(el.quickPriceUnidad?.value || "0");
+  const precioCaja = Number.isFinite(priceCajaParsed) ? Math.max(0, Math.round(priceCajaParsed)) : Number.NaN;
+  const precioSobre = Number.isFinite(priceSobreParsed) ? Math.max(0, Math.round(priceSobreParsed)) : Number.NaN;
+  const precioUnidad = Number.isFinite(priceUnidadParsed)
+    ? Math.max(0, Math.round(priceUnidadParsed))
+    : Number.NaN;
+
+  const sobresParsed = parseNumberInput(el.quickSobresCaja?.value || "1");
+  const unidadesParsed = parseNumberInput(el.quickUnidadesSobre?.value || "1");
+  const stockParsed = parseNumberInput(el.quickStockCajas?.value || "0");
+
+  const sobresXCaja = Number.isFinite(sobresParsed) ? Math.max(1, Math.floor(sobresParsed)) : Number.NaN;
+  const unidadesXSobre = Number.isFinite(unidadesParsed)
+    ? Math.max(1, Math.floor(unidadesParsed))
+    : Number.NaN;
+  const stockCajas = Number.isFinite(stockParsed) ? Math.max(0, Math.floor(stockParsed)) : Number.NaN;
+
+  const categoriaInput = String(el.quickCategory?.value || "").trim();
+  const categoria = categoriaInput || "General";
 
   if (!code) {
     if (el.quickFeedback) setFeedback(el.quickFeedback, "Codigo invalido.", "error");
@@ -1202,64 +1527,175 @@ async function submitQuickCreateProduct(event) {
     return;
   }
 
-  if (!Number.isFinite(precioUnidad) || precioUnidad <= 0) {
-    if (el.quickFeedback) setFeedback(el.quickFeedback, "Precio unitario invalido.", "error");
-    if (el.quickPrice) el.quickPrice.focus();
+  if (!Number.isFinite(precioCaja) || !Number.isFinite(precioSobre) || !Number.isFinite(precioUnidad)) {
+    if (el.quickFeedback) setFeedback(el.quickFeedback, "Precios invalidos.", "error");
+    return;
+  }
+
+  if (precioCaja <= 0 && precioSobre <= 0 && precioUnidad <= 0) {
+    if (el.quickFeedback) {
+      setFeedback(el.quickFeedback, "Configura al menos un precio mayor que 0 (caja/sobre/unidad).", "error");
+    }
+    if (el.quickPriceUnidad) el.quickPriceUnidad.focus();
+    return;
+  }
+
+  if (!Number.isFinite(sobresXCaja) || sobresXCaja < 1) {
+    if (el.quickFeedback) setFeedback(el.quickFeedback, "Sobres por caja invalido.", "error");
+    if (el.quickSobresCaja) el.quickSobresCaja.focus();
+    return;
+  }
+
+  if (!Number.isFinite(unidadesXSobre) || unidadesXSobre < 1) {
+    if (el.quickFeedback) setFeedback(el.quickFeedback, "Unidades por sobre invalido.", "error");
+    if (el.quickUnidadesSobre) el.quickUnidadesSobre.focus();
+    return;
+  }
+
+  if (!Number.isFinite(stockCajas)) {
+    if (el.quickFeedback) setFeedback(el.quickFeedback, "Stock cajas invalido.", "error");
+    if (el.quickStockCajas) el.quickStockCajas.focus();
+    return;
+  }
+
+  if (mode === "create" && resolveProductByScan(code)) {
+    if (el.quickFeedback) setFeedback(el.quickFeedback, "Ese codigo ya existe en el catalogo.", "error");
+    if (el.quickCode) el.quickCode.focus();
     return;
   }
 
   if (el.quickSaveBtn) {
-    setBusy(el.quickSaveBtn, true, "Creando...", "Crear y agregar");
+    setBusy(
+      el.quickSaveBtn,
+      true,
+      mode === "edit" ? "Guardando..." : "Creando...",
+      mode === "edit" ? "Guardar cambios" : "Crear y agregar"
+    );
   }
 
   try {
+    if (mode === "create") {
+      const payload = {
+        externalId: code,
+        nombre: nombreFinal,
+        categoria,
+        disponibilidad: "Disponible",
+        precioCaja,
+        precioSobre,
+        precioUnidad,
+        sobresXCaja,
+        unidadesXSobre,
+        stockCajas,
+        descripcion: "",
+        imagen: "",
+        ofertaActiva: false,
+        ofertaTexto: "",
+        ofertaPrecioCaja: 0,
+        ofertaPrecioSobre: 0,
+      };
+
+      const created = await request("/products", {
+        method: "POST",
+        body: payload,
+      });
+
+      await loadProducts();
+
+      const product = resolveProductByScan(code) || {
+        id: Number(created?.id) || 0,
+        externalId: code,
+        nombre: nombreFinal,
+        categoria,
+        precioCaja,
+        precioSobre,
+        precioUnidad,
+        sobresXCaja,
+        unidadesXSobre,
+        stockCajas,
+      };
+
+      addProductToCart(product, defaultPresentation(product));
+      if (el.scanInput) el.scanInput.value = "";
+      closeQuickCreateModal(false);
+      setFeedback(el.saleFeedback, "Producto creado y agregado al carrito.", "success");
+      focusScanInput();
+      return;
+    }
+
+    const base = state.quickEditProduct || {};
+    const externalId = normalizeScannedCode(base.externalId || "");
+    const id = externalId ? 0 : Number(base.id) || 0;
+
     const payload = {
-      externalId: code,
       nombre: nombreFinal,
+      descripcion: String(base.descripcion || ""),
       categoria,
-      disponibilidad: "Disponible",
-      precioCaja: 0,
-      precioSobre: 0,
+      disponibilidad: String(base.disponibilidad || "Disponible"),
+      imagen: String(base.imagen || ""),
+      precioCaja,
+      precioSobre,
       precioUnidad,
-      sobresXCaja: 1,
-      unidadesXSobre: 1,
+      sobresXCaja,
+      unidadesXSobre,
       stockCajas,
-      descripcion: "",
-      imagen: "",
-      ofertaActiva: false,
-      ofertaTexto: "",
-      ofertaPrecioCaja: 0,
-      ofertaPrecioSobre: 0,
+      ofertaActiva: !!base.ofertaActiva,
+      ofertaTexto: String(base.ofertaTexto || ""),
+      ofertaPrecioCaja: Number(base.ofertaPrecioCaja) || 0,
+      ofertaPrecioSobre: Number(base.ofertaPrecioSobre) || 0,
     };
 
-    const created = await request("/products", {
-      method: "POST",
-      body: payload,
+    if (externalId) {
+      await request(`/products/external/${encodeURIComponent(externalId)}`, {
+        method: "PUT",
+        body: payload,
+      });
+    } else if (id > 0) {
+      await request(`/products/${id}`, {
+        method: "PUT",
+        body: payload,
+      });
+    } else {
+      throw new Error("Producto sin identificador para editar.");
+    }
+
+    const previewProduct = {
+      ...base,
+      ...payload,
+      id: id || Number(base.id) || null,
+      externalId: externalId || code,
+    };
+
+    state.cart = state.cart.map((item) => {
+      const sameByCode = normalizeScannedCode(item.code).toLowerCase() === code.toLowerCase();
+      const sameById = id > 0 && Number(item.id) === id;
+      if (!sameByCode && !sameById) return item;
+
+      const nextPrice = presentationPrice(previewProduct, item.presentation);
+      return {
+        ...item,
+        name: nombreFinal,
+        price: nextPrice > 0 ? nextPrice : item.price,
+        unitsPerItem: presentationUnits(previewProduct, item.presentation),
+      };
     });
 
     await loadProducts();
-
-    const product = resolveProductByScan(code) || {
-      id: Number(created?.id) || 0,
-      externalId: code,
-      nombre: nombreFinal,
-      categoria,
-      precioUnidad,
-      stockCajas,
-    };
-
-    addProductToCart(product);
-    if (el.scanInput) el.scanInput.value = "";
+    renderCart();
     closeQuickCreateModal(false);
-    setFeedback(el.saleFeedback, "Producto creado y agregado al carrito.", "success");
+    setFeedback(el.saleFeedback, "Producto actualizado.", "success");
     focusScanInput();
   } catch (error) {
     if (el.quickFeedback) {
-      setFeedback(el.quickFeedback, `No se pudo crear producto: ${error.message}`, "error");
+      setFeedback(el.quickFeedback, `No se pudo guardar producto: ${error.message}`, "error");
     }
   } finally {
     if (el.quickSaveBtn) {
-      setBusy(el.quickSaveBtn, false, "Creando...", "Crear y agregar");
+      setBusy(
+        el.quickSaveBtn,
+        false,
+        mode === "edit" ? "Guardando..." : "Creando...",
+        mode === "edit" ? "Guardar cambios" : "Crear y agregar"
+      );
     }
   }
 }
@@ -1290,6 +1726,7 @@ async function fetchAllProducts() {
 async function loadProducts() {
   const rows = await fetchAllProducts();
   state.products = rows;
+  renderQuickCategoryOptions();
   filterProducts(el.productSearch.value);
   focusScanInput();
 }
@@ -1308,8 +1745,14 @@ function applyLocalStockDeduction() {
   for (const item of state.cart) {
     const product = findProductByCode(item.code);
     if (!product) continue;
-    const current = productStock(product);
-    product.stockCajas = Math.max(0, current - item.qty);
+
+    const unitsPerCaja = productUnitsPerCaja(product);
+    const currentUnits = productStockUnits(product);
+    const unitsPerItem = Math.max(1, Number(item.unitsPerItem) || presentationUnits(product, item.presentation));
+    const nextUnits = Math.max(0, currentUnits - item.qty * unitsPerItem);
+    const nextBoxes = nextUnits / unitsPerCaja;
+
+    product.stockCajas = Number(nextBoxes.toFixed(4));
   }
 }
 
@@ -1317,16 +1760,17 @@ function ticketHtml(mode) {
   if (!state.lastTicket) return "";
   const ticket = state.lastTicket;
   const rows = ticket.items
-    .map(
-      (item) => `
+    .map((item) => {
+      const presentation = item.presentacion ? ` (${presentationLabel(item.presentacion)})` : "";
+      return `
         <tr>
-          <td>${escapeHtml(item.nombre)}</td>
+          <td>${escapeHtml(item.nombre)}${escapeHtml(presentation)}</td>
           <td style="text-align:center;">${item.cantidad}</td>
           <td style="text-align:right;">${money(item.precio)}</td>
           <td style="text-align:right;">${money(item.subtotal)}</td>
         </tr>
-      `
-    )
+      `;
+    })
     .join("");
 
   const compact = mode === "thermal";
@@ -1489,6 +1933,24 @@ async function submitLogin(event) {
   }
 }
 
+function validateStockBeforeSale() {
+  if (!state.prefs.enforceStock) return true;
+
+  for (const item of state.cart) {
+    const product = findProductByCode(item.code);
+    if (!product) {
+      setFeedback(el.saleFeedback, "No se pudo validar stock para un item del carrito.", "error");
+      return false;
+    }
+
+    if (!canIncreaseQty(product, item.presentation, item.qty, item.key)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 async function completeSale() {
   if (!state.cart.length) {
     setFeedback(el.saleFeedback, "Agrega productos antes de registrar venta.", "error");
@@ -1517,10 +1979,13 @@ async function completeSale() {
       total,
       items: state.cart.map((item) => ({
         id: item.id || item.code,
+        code: item.code,
         nombre: item.name,
+        presentacion: normalizePresentation(item.presentation),
         cantidad: item.qty,
         precio: item.price,
         subtotal: item.qty * item.price,
+        unidadesEquivalentes: item.qty * Math.max(1, Number(item.unitsPerItem) || 1),
       })),
     };
 
@@ -1551,7 +2016,7 @@ async function completeSale() {
     renderCart();
     filterProducts(el.productSearch.value);
     await loadSales();
-      await loadClosureHistory();
+    await loadClosureHistory();
 
     el.customerName.value = "";
     el.customerPhone.value = "";
@@ -1643,6 +2108,16 @@ function bindKeyboardShortcuts() {
       return;
     }
 
+    if (event.key === "F6") {
+      event.preventDefault();
+      if (!isOwnerSession()) {
+        setFeedback(el.saleFeedback, "Solo owner puede crear productos.", "error");
+        return;
+      }
+      openQuickCreateModal("");
+      return;
+    }
+
     if (event.key === "F8") {
       event.preventDefault();
       printClosureReport();
@@ -1679,6 +2154,24 @@ function bindEvents() {
   if (el.quickForm) {
     el.quickForm.addEventListener("submit", (event) => {
       void submitQuickCreateProduct(event);
+    });
+  }
+
+  if (el.quickCode) {
+    el.quickCode.addEventListener("input", () => {
+      const normalized = normalizeScannedCode(el.quickCode.value);
+      if (el.quickCode.value !== normalized) el.quickCode.value = normalized;
+      state.quickCreateCode = normalized;
+    });
+  }
+
+  if (el.newProductBtn) {
+    el.newProductBtn.addEventListener("click", () => {
+      if (!isOwnerSession()) {
+        setFeedback(el.saleFeedback, "Solo owner puede crear productos.", "error");
+        return;
+      }
+      openQuickCreateModal("");
     });
   }
 
@@ -1755,7 +2248,31 @@ function bindEvents() {
     if (button.classList.contains("add-product-btn")) {
       const code = String(button.dataset.code || "");
       const product = findProductByCode(code);
-      if (product) addProductToCart(product);
+      if (!product) return;
+
+      let presentation = defaultPresentation(product);
+      const row = button.closest("tr");
+      if (row instanceof HTMLTableRowElement) {
+        const select = row.querySelector(".presentation-select");
+        if (select instanceof HTMLSelectElement) {
+          presentation = normalizePresentation(select.value);
+        }
+      }
+
+      addProductToCart(product, presentation);
+      return;
+    }
+
+    if (button.classList.contains("edit-product-btn")) {
+      const code = String(button.dataset.code || "");
+      const id = Number(button.dataset.id || 0);
+      const product =
+        findProductByCode(code) || state.products.find((item) => Number(item.id) === id) || null;
+      if (!product) {
+        setFeedback(el.saleFeedback, "Producto no encontrado para editar.", "error");
+        return;
+      }
+      openQuickEditModal(product);
       return;
     }
 
@@ -1776,9 +2293,9 @@ function bindEvents() {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
     const action = String(target.dataset.action || "");
-    const code = String(target.dataset.code || "");
-    if (!action || !code) return;
-    updateCartItem(code, action);
+    const key = String(target.dataset.key || "");
+    if (!action || !key) return;
+    updateCartItem(key, action);
   });
 
   el.refreshProductsBtn.addEventListener("click", async () => {

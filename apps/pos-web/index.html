@@ -60,6 +60,7 @@
               <h2>Catalogo</h2>
               <div class="panel-actions">
                 <button id="dense-mode-btn" class="btn ghost" type="button">Vista densa: OFF</button>
+                <button id="new-product-btn" class="btn ghost hidden" type="button">Nuevo producto</button>
                 <button id="refresh-products-btn" class="btn ghost" type="button">Actualizar</button>
               </div>
             </div>
@@ -67,7 +68,7 @@
               <input id="product-search" type="search" placeholder="Buscar por nombre, codigo o categoria" />
               <input id="scan-input" type="text" placeholder="Escanear codigo de barras y Enter" />
             </div>
-            <p class="shortcuts">F2 Buscar - F4 Registrar venta - F8 Imprimir cierre - F9 Exportar cierre CSV - Esc Limpiar carrito</p>
+            <p class="shortcuts">F2 Buscar - F4 Registrar venta - F6 Nuevo producto (owner) - F8 Imprimir cierre - F9 Exportar cierre CSV - Esc Limpiar carrito</p>
             <div id="products-table-wrap" class="table-wrap">
               <table>
                 <thead>
@@ -213,16 +214,33 @@
             <input id="quick-name" type="text" maxlength="120" required autocomplete="off" />
           </label>
           <label>
-            Precio unitario (COP)
-            <input id="quick-price" type="number" min="0" step="100" required />
+            Precio caja (COP)
+            <input id="quick-price-caja" type="number" min="0" step="100" value="0" />
           </label>
           <label>
-            Stock inicial
-            <input id="quick-stock" type="number" min="0" step="1" value="0" />
+            Precio sobre (COP)
+            <input id="quick-price-sobre" type="number" min="0" step="100" value="0" />
+          </label>
+          <label>
+            Precio unidad (COP)
+            <input id="quick-price-unidad" type="number" min="0" step="100" value="1000" />
+          </label>
+          <label>
+            Sobres por caja
+            <input id="quick-sobres-caja" type="number" min="1" step="1" value="1" />
+          </label>
+          <label>
+            Unidades por sobre
+            <input id="quick-unidades-sobre" type="number" min="1" step="1" value="1" />
+          </label>
+          <label>
+            Stock cajas
+            <input id="quick-stock-cajas" type="number" min="0" step="1" value="0" />
           </label>
           <label>
             Categoria
-            <input id="quick-category" type="text" maxlength="80" placeholder="General" autocomplete="off" />
+            <input id="quick-category" type="text" maxlength="80" placeholder="General" autocomplete="off" list="quick-category-options" />
+            <datalist id="quick-category-options"></datalist>
           </label>
           <p id="quick-feedback" class="feedback"></p>
           <div class="form-actions">

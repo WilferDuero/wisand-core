@@ -23,8 +23,8 @@ Abrir en navegador: `http://localhost:3030`
 2. Iniciar sesion multi-tenant.
 3. Buscar o escanear productos.
 4. Si el codigo escaneado no existe, `owner` puede abrir modal de alta rapida y crearlo al vuelo.
-5. `owner` puede eliminar productos del catalogo desde la misma tabla.
-6. Agregar al carrito.
+5. `owner` puede crear producto manual, editar y eliminar desde la tabla del catalogo.
+6. Seleccionar presentacion por producto (unidad/sobre/caja) y agregar al carrito.
 7. Registrar venta (`POST /sales`).
 8. Imprimir ticket A4 o termica.
 9. Revisar cierre de caja diario por metodo de pago.
@@ -37,6 +37,7 @@ Abrir en navegador: `http://localhost:3030`
 
 - `F2`: buscar producto
 - `F4`: registrar venta
+- `F6`: nuevo producto rapido (solo owner)
 - `F8`: imprimir cierre diario
 - `F9`: exportar cierre CSV
 - `Esc`: limpiar carrito

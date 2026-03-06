@@ -297,6 +297,22 @@ th {
   font-size: 12px;
 }
 
+.row-actions .presentation-select {
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 8px;
+  font-size: 12px;
+  background: #fff;
+}
+
+.stock-meta {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .stock-pill {
   display: inline-flex;
   padding: 2px 8px;
