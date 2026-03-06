@@ -52,6 +52,8 @@ const state = {
   closureSummary: null,
   closureHistory: [],
   inactiveSummary: null,
+  topSummary: null,
+  criticalSummary: null,
   quickCreateCode: "",
   quickModalMode: "create",
   quickEditProduct: null,
@@ -128,6 +130,9 @@ const el = {
   inactiveDays: document.getElementById("inactive-days"),
   refreshInactiveBtn: document.getElementById("refresh-inactive-btn"),
   inactiveList: document.getElementById("inactive-list"),
+  topProductsList: document.getElementById("top-products-list"),
+  criticalStockThreshold: document.getElementById("critical-stock-threshold"),
+  criticalStockList: document.getElementById("critical-stock-list"),
   closureDate: document.getElementById("closure-date"),
   closureTodayBtn: document.getElementById("closure-today-btn"),
   refreshClosureBtn: document.getElementById("refresh-closure-btn"),
@@ -887,6 +892,225 @@ function renderInactiveProducts() {
       : "";
 
   el.inactiveList.innerHTML = `${itemsHtml}${moreHtml}`;
+}
+
+function normalizeCriticalStockThreshold(rawValue) {
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed)) return 2;
+  return Math.min(9999, Math.max(0, Math.floor(parsed)));
+}
+
+function saleItemQty(item) {
+  return Math.max(0, Number(item?.cantidad ?? item?.qty ?? item?.quantity ?? 0) || 0);
+}
+
+function saleItemSubtotal(item) {
+  const subtotalRaw = Number(item?.subtotal ?? item?.subTotal ?? item?.total);
+  if (Number.isFinite(subtotalRaw) && subtotalRaw > 0) {
+    return subtotalRaw;
+  }
+
+  const qty = saleItemQty(item);
+  const unit = Number(item?.precio ?? item?.price ?? item?.unitPrice ?? 0) || 0;
+  return qty * unit;
+}
+
+function buildProductRefIndex() {
+  const index = new Map();
+  state.products.forEach((product) => {
+    extractProductRefs(product).forEach((ref) => {
+      if (!ref) return;
+      if (!index.has(ref)) {
+        index.set(ref, product);
+      }
+    });
+  });
+  return index;
+}
+
+function buildTopProductsSummary(rawDays = 30) {
+  const days = normalizeInactiveDays(rawDays);
+  const dayMs = 24 * 60 * 60 * 1000;
+  const cutoff = Date.now() - days * dayMs;
+  const byKey = new Map();
+  const productRefIndex = buildProductRefIndex();
+
+  state.sales.forEach((sale) => {
+    const ts = saleTimestamp(sale);
+    if (!ts || ts < cutoff) return;
+
+    const items = Array.isArray(sale?.items) ? sale.items : [];
+    items.forEach((item) => {
+      const qty = saleItemQty(item);
+      if (qty <= 0) return;
+
+      const refs = extractSaleItemRefs(item);
+      const bestRef = refs.find((ref) => productRefIndex.has(ref)) || refs[0] || "";
+      const product = bestRef ? productRefIndex.get(bestRef) || null : null;
+
+      const fallbackName = String(item?.nombre || item?.name || "").trim();
+      const key = bestRef || (fallbackName ? `name:${canonicalProductRef(fallbackName)}` : "");
+      if (!key) return;
+
+      const displayName = product?.nombre || fallbackName || "Producto";
+      const displayCode = product ? productCode(product) : String(item?.code || item?.id || "").trim();
+      const subtotal = saleItemSubtotal(item);
+
+      const existing = byKey.get(key) || {
+        key,
+        ref: bestRef,
+        name: displayName,
+        code: displayCode,
+        qty: 0,
+        total: 0,
+        sales: 0,
+      };
+
+      existing.qty += qty;
+      existing.total += subtotal;
+      existing.sales += 1;
+
+      if (!existing.name && displayName) existing.name = displayName;
+      if (!existing.code && displayCode) existing.code = displayCode;
+
+      byKey.set(key, existing);
+    });
+  });
+
+  const rows = Array.from(byKey.values()).sort((a, b) => {
+    const qtyDiff = b.qty - a.qty;
+    if (qtyDiff) return qtyDiff;
+
+    const totalDiff = b.total - a.total;
+    if (totalDiff) return totalDiff;
+
+    return String(a.name || "").localeCompare(String(b.name || ""), "es");
+  });
+
+  return {
+    days,
+    total: rows.length,
+    rows,
+  };
+}
+
+function renderTopProducts() {
+  if (!el.topProductsList || !el.inactiveDays) return;
+
+  const days = normalizeInactiveDays(el.inactiveDays.value || 30);
+
+  if (!state.salesLoaded) {
+    el.topProductsList.innerHTML = `<li class="insight-empty">Cargando ventas para top vendidos...</li>`;
+    return;
+  }
+
+  const summary = buildTopProductsSummary(days);
+  state.topSummary = summary;
+
+  if (!summary.total) {
+    el.topProductsList.innerHTML = `<li class="insight-empty">Sin ventas en los ultimos ${summary.days} dias.</li>`;
+    return;
+  }
+
+  const limit = 10;
+  const itemsHtml = summary.rows
+    .slice(0, limit)
+    .map((row) => {
+      return `
+        <li class="insight-item">
+          <div class="insight-row">
+            <strong>${escapeHtml(row.name || "Producto")}</strong>
+            <span class="insight-pill">${escapeHtml(formatQty(row.qty, 2))} und</span>
+          </div>
+          <div class="insight-row">
+            <span class="sales-meta">${escapeHtml(row.code || "--")}</span>
+            <span class="sales-meta">${money(row.total)}</span>
+          </div>
+        </li>
+      `;
+    })
+    .join("");
+
+  const moreHtml =
+    summary.total > limit
+      ? `<li class="insight-more">Mostrando ${limit} de ${summary.total} productos.</li>`
+      : "";
+
+  el.topProductsList.innerHTML = `${itemsHtml}${moreHtml}`;
+}
+
+function buildCriticalStockSummary(rawThreshold = 2) {
+  const threshold = normalizeCriticalStockThreshold(rawThreshold);
+
+  const rows = state.products
+    .filter((product) => productStock(product) <= threshold)
+    .sort((a, b) => {
+      const stockDiff = productStock(a) - productStock(b);
+      if (stockDiff !== 0) return stockDiff;
+      return String(a?.nombre || "").localeCompare(String(b?.nombre || ""), "es");
+    });
+
+  return {
+    threshold,
+    total: rows.length,
+    rows,
+  };
+}
+
+function renderCriticalStock() {
+  if (!el.criticalStockList || !el.criticalStockThreshold) return;
+
+  if (!state.products.length) {
+    el.criticalStockList.innerHTML = `<li class="insight-empty">Carga catalogo para evaluar stock critico.</li>`;
+    return;
+  }
+
+  const threshold = normalizeCriticalStockThreshold(el.criticalStockThreshold.value);
+  el.criticalStockThreshold.value = String(threshold);
+
+  const summary = buildCriticalStockSummary(threshold);
+  state.criticalSummary = summary;
+
+  if (!summary.total) {
+    el.criticalStockList.innerHTML = `<li class="insight-empty">Sin productos con stock <= ${summary.threshold} cajas.</li>`;
+    return;
+  }
+
+  const limit = 15;
+  const itemsHtml = summary.rows
+    .slice(0, limit)
+    .map((product) => {
+      const code = productCode(product);
+      const stockBoxes = formatQty(productStock(product), 2);
+      const stockUnits = formatQty(productStockUnits(product), 2);
+
+      return `
+        <li class="insight-item">
+          <div class="insight-row">
+            <strong>${escapeHtml(product.nombre || "Producto")}</strong>
+            <span class="insight-pill critical">${escapeHtml(stockBoxes)} caja(s)</span>
+          </div>
+          <div class="insight-row">
+            <span class="sales-meta">${escapeHtml(code)}</span>
+            <span class="sales-meta">${escapeHtml(stockUnits)} und aprox.</span>
+          </div>
+        </li>
+      `;
+    })
+    .join("");
+
+  const moreHtml =
+    summary.total > limit
+      ? `<li class="insight-more">Mostrando ${limit} de ${summary.total} productos.</li>`
+      : "";
+
+  el.criticalStockList.innerHTML = `${itemsHtml}${moreHtml}`;
+}
+
+function renderOwnerInsights() {
+  renderInactiveProducts();
+  renderTopProducts();
+  renderCriticalStock();
 }
 
 function buildClosureSummary(dateKey) {
@@ -2159,7 +2383,7 @@ async function loadProducts() {
   state.products = rows;
   renderQuickCategoryOptions();
   filterProducts(el.productSearch.value);
-  renderInactiveProducts();
+  renderOwnerInsights();
   focusScanInput();
 }
 
@@ -2168,7 +2392,7 @@ async function loadSales() {
   state.sales = Array.isArray(payload) ? payload : [];
   state.salesLoaded = true;
   renderSales();
-  renderInactiveProducts();
+  renderOwnerInsights();
   renderClosure();
   renderClosureHistory();
 }
@@ -2477,6 +2701,8 @@ function logout() {
   state.closureSummary = null;
   state.closureHistory = [];
   state.inactiveSummary = null;
+  state.topSummary = null;
+  state.criticalSummary = null;
   state.quickCreateCode = "";
   if (el.quickCreateModal) {
     el.quickCreateModal.classList.add("hidden");
@@ -2489,7 +2715,7 @@ function logout() {
   setAuthView(false);
   renderProducts();
   renderSales();
-  renderInactiveProducts();
+  renderOwnerInsights();
   renderCart();
   if (el.closureDate) {
     el.closureDate.value = toDateInputValueLocal();
@@ -2786,7 +3012,16 @@ function bindEvents() {
   if (el.inactiveDays) {
     el.inactiveDays.addEventListener("change", () => {
       el.inactiveDays.value = String(normalizeInactiveDays(el.inactiveDays.value));
-      renderInactiveProducts();
+      renderOwnerInsights();
+    });
+  }
+
+  if (el.criticalStockThreshold) {
+    el.criticalStockThreshold.addEventListener("change", () => {
+      el.criticalStockThreshold.value = String(
+        normalizeCriticalStockThreshold(el.criticalStockThreshold.value)
+      );
+      renderCriticalStock();
     });
   }
 
@@ -2799,9 +3034,9 @@ function bindEvents() {
 
       try {
         await Promise.all([loadProducts(), loadSales()]);
-        setFeedback(el.saleFeedback, "Reporte de rotacion actualizado.", "success");
+        setFeedback(el.saleFeedback, "Indicadores actualizados.", "success");
       } catch (error) {
-        setFeedback(el.saleFeedback, `No se pudo actualizar reporte de rotacion: ${error.message}`, "error");
+        setFeedback(el.saleFeedback, `No se pudo actualizar indicadores: ${error.message}`, "error");
       }
     });
   }
@@ -2951,7 +3186,7 @@ async function init() {
   renderProducts();
   renderCart();
   renderSales();
-  renderInactiveProducts();
+  renderOwnerInsights();
   renderClosure();
   renderClosureHistory();
   await restoreSession();

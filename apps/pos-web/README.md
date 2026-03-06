@@ -32,7 +32,7 @@ Abrir en navegador: `http://localhost:3030`
 11. Definir caja inicial y efectivo real contado (arqueo).
 12. Exportar cierre a CSV.
 13. Guardar cierre en historial del tenant y consultar cierres recientes.
-14. Ver reporte de productos sin rotacion (dias configurables, solo owner).
+14. Ver panel de indicadores owner: sin rotacion, top vendidos y stock critico.
 
 
 ## Importacion CSV (solo owner)
