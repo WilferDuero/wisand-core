@@ -147,6 +147,22 @@
 
             <hr class="panel-divider" />
 
+            <div id="inactive-panel" class="inactive-panel hidden">
+              <div class="panel-head">
+                <h2>Sin rotacion</h2>
+                <button id="refresh-inactive-btn" class="btn ghost" type="button">Actualizar</button>
+              </div>
+              <div class="inactive-controls">
+                <label>
+                  Dias sin vender
+                  <input id="inactive-days" type="number" min="7" max="365" step="1" value="30" />
+                </label>
+              </div>
+              <ul id="inactive-list" class="inactive-list"></ul>
+            </div>
+
+            <hr class="panel-divider" />
+
             <div class="panel-head">
               <h2>Cierre de caja</h2>
               <div class="panel-actions">

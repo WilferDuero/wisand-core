@@ -47,9 +47,11 @@ const state = {
   filteredProducts: [],
   cart: [],
   sales: [],
+  salesLoaded: false,
   lastTicket: null,
   closureSummary: null,
   closureHistory: [],
+  inactiveSummary: null,
   quickCreateCode: "",
   quickModalMode: "create",
   quickEditProduct: null,
@@ -122,6 +124,10 @@ const el = {
 
   salesList: document.getElementById("sales-list"),
   refreshSalesBtn: document.getElementById("refresh-sales-btn"),
+  inactivePanel: document.getElementById("inactive-panel"),
+  inactiveDays: document.getElementById("inactive-days"),
+  refreshInactiveBtn: document.getElementById("refresh-inactive-btn"),
+  inactiveList: document.getElementById("inactive-list"),
   closureDate: document.getElementById("closure-date"),
   closureTodayBtn: document.getElementById("closure-today-btn"),
   refreshClosureBtn: document.getElementById("refresh-closure-btn"),
@@ -729,6 +735,160 @@ function renderSales() {
     })
     .join("");
 }
+
+function normalizeInactiveDays(rawValue) {
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed)) return 30;
+  return Math.min(365, Math.max(7, Math.floor(parsed)));
+}
+
+function canonicalProductRef(raw) {
+  return String(raw || "").trim().toLowerCase();
+}
+
+function extractSaleItemRefs(item) {
+  const refs = new Set();
+  const code = canonicalProductRef(item?.code);
+  const externalId = canonicalProductRef(item?.externalId);
+  const id = canonicalProductRef(item?.id);
+  if (code) refs.add(code);
+  if (externalId) refs.add(externalId);
+  if (id) refs.add(id);
+  return Array.from(refs);
+}
+
+function extractProductRefs(product) {
+  const refs = new Set();
+  const code = canonicalProductRef(productCode(product));
+  const externalId = canonicalProductRef(product?.externalId);
+  const id = canonicalProductRef(product?.id);
+  if (code) refs.add(code);
+  if (externalId) refs.add(externalId);
+  if (id) refs.add(id);
+  return Array.from(refs);
+}
+
+function buildInactiveProductsSummary(rawDays = 30) {
+  const days = normalizeInactiveDays(rawDays);
+  const dayMs = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const cutoff = now - days * dayMs;
+  const lastSaleByRef = new Map();
+
+  state.sales.forEach((sale) => {
+    const ts = saleTimestamp(sale);
+    if (!ts) return;
+
+    const items = Array.isArray(sale?.items) ? sale.items : [];
+    items.forEach((item) => {
+      extractSaleItemRefs(item).forEach((ref) => {
+        const previous = lastSaleByRef.get(ref) || 0;
+        if (ts > previous) {
+          lastSaleByRef.set(ref, ts);
+        }
+      });
+    });
+  });
+
+  const rows = [];
+
+  state.products.forEach((product) => {
+    if (productStock(product) <= 0) return;
+
+    const refs = extractProductRefs(product);
+    let lastSoldAt = 0;
+
+    refs.forEach((ref) => {
+      const ts = lastSaleByRef.get(ref) || 0;
+      if (ts > lastSoldAt) {
+        lastSoldAt = ts;
+      }
+    });
+
+    if (lastSoldAt >= cutoff) return;
+
+    const idleDays = lastSoldAt ? Math.floor((now - lastSoldAt) / dayMs) : null;
+
+    rows.push({
+      product,
+      lastSoldAt,
+      idleDays,
+    });
+  });
+
+  rows.sort((a, b) => {
+    if (!a.lastSoldAt && b.lastSoldAt) return -1;
+    if (a.lastSoldAt && !b.lastSoldAt) return 1;
+    if (!a.lastSoldAt && !b.lastSoldAt) {
+      return String(a.product?.nombre || "").localeCompare(String(b.product?.nombre || ""), "es");
+    }
+    return a.lastSoldAt - b.lastSoldAt;
+  });
+
+  return {
+    days,
+    total: rows.length,
+    rows,
+  };
+}
+
+function renderInactiveProducts() {
+  if (!el.inactiveList || !el.inactiveDays) return;
+
+  const days = normalizeInactiveDays(el.inactiveDays.value || 30);
+  el.inactiveDays.value = String(days);
+
+  if (!state.products.length) {
+    el.inactiveList.innerHTML = `<li class="inactive-empty">Carga catalogo para calcular rotacion.</li>`;
+    return;
+  }
+
+  if (!state.salesLoaded) {
+    el.inactiveList.innerHTML = `<li class="inactive-empty">Cargando ventas para calcular rotacion...</li>`;
+    return;
+  }
+
+  const summary = buildInactiveProductsSummary(days);
+  state.inactiveSummary = summary;
+
+  if (!summary.total) {
+    el.inactiveList.innerHTML = `<li class="inactive-empty">No hay productos con mas de ${summary.days} dias sin venta (con stock mayor a 0).</li>`;
+    return;
+  }
+
+  const limit = 15;
+  const itemsHtml = summary.rows
+    .slice(0, limit)
+    .map((row) => {
+      const product = row.product;
+      const code = productCode(product);
+      const stockBoxes = formatQty(productStock(product), 2);
+      const idleLabel = row.lastSoldAt ? `${row.idleDays} dias sin venta` : "Nunca vendido";
+      const lastSaleLabel = row.lastSoldAt ? `Ult venta: ${fmtDate(new Date(row.lastSoldAt).toISOString())}` : "Ult venta: --";
+
+      return `
+        <li class="inactive-item">
+          <div class="inactive-main">
+            <strong>${escapeHtml(product.nombre || "Producto")}</strong>
+            <span class="sales-meta">${escapeHtml(code)} - Stock ${escapeHtml(stockBoxes)} caja(s)</span>
+          </div>
+          <div class="inactive-meta">
+            <span class="inactive-pill">${escapeHtml(idleLabel)}</span>
+            <span class="sales-meta">${escapeHtml(lastSaleLabel)}</span>
+          </div>
+        </li>
+      `;
+    })
+    .join("");
+
+  const moreHtml =
+    summary.total > limit
+      ? `<li class="inactive-more">Mostrando ${limit} de ${summary.total} productos.</li>`
+      : "";
+
+  el.inactiveList.innerHTML = `${itemsHtml}${moreHtml}`;
+}
+
 function buildClosureSummary(dateKey) {
   const selectedDate = String(dateKey || "").trim() || toDateInputValueLocal();
   const startTime = String(state.prefs.closureStart || "00:00");
@@ -1066,6 +1226,7 @@ function setAuthView(loggedIn) {
   el.logoutBtn.classList.toggle("hidden", !loggedIn);
   if (el.newProductBtn) el.newProductBtn.classList.toggle("hidden", !loggedIn || !isOwnerSession());
   if (el.importCsvBtn) el.importCsvBtn.classList.toggle("hidden", !loggedIn || !isOwnerSession());
+  if (el.inactivePanel) el.inactivePanel.classList.toggle("hidden", !loggedIn || !isOwnerSession());
 
   if (loggedIn && state.user) {
     el.sessionUser.textContent = `${state.user.username} - ${state.user.role} - ${state.tenantCode}`;
@@ -1998,13 +2159,16 @@ async function loadProducts() {
   state.products = rows;
   renderQuickCategoryOptions();
   filterProducts(el.productSearch.value);
+  renderInactiveProducts();
   focusScanInput();
 }
 
 async function loadSales() {
   const payload = await request("/sales");
   state.sales = Array.isArray(payload) ? payload : [];
+  state.salesLoaded = true;
   renderSales();
+  renderInactiveProducts();
   renderClosure();
   renderClosureHistory();
 }
@@ -2306,11 +2470,13 @@ function logout() {
   state.products = [];
   state.filteredProducts = [];
   state.sales = [];
+  state.salesLoaded = false;
   state.cart = [];
   state.tenantCode = "";
   state.prefs = { ...DEFAULT_PREFS };
   state.closureSummary = null;
   state.closureHistory = [];
+  state.inactiveSummary = null;
   state.quickCreateCode = "";
   if (el.quickCreateModal) {
     el.quickCreateModal.classList.add("hidden");
@@ -2323,6 +2489,7 @@ function logout() {
   setAuthView(false);
   renderProducts();
   renderSales();
+  renderInactiveProducts();
   renderCart();
   if (el.closureDate) {
     el.closureDate.value = toDateInputValueLocal();
@@ -2616,6 +2783,29 @@ function bindEvents() {
     }
   });
 
+  if (el.inactiveDays) {
+    el.inactiveDays.addEventListener("change", () => {
+      el.inactiveDays.value = String(normalizeInactiveDays(el.inactiveDays.value));
+      renderInactiveProducts();
+    });
+  }
+
+  if (el.refreshInactiveBtn) {
+    el.refreshInactiveBtn.addEventListener("click", async () => {
+      if (!isOwnerSession()) {
+        setFeedback(el.saleFeedback, "Solo owner puede ver este reporte.", "error");
+        return;
+      }
+
+      try {
+        await Promise.all([loadProducts(), loadSales()]);
+        setFeedback(el.saleFeedback, "Reporte de rotacion actualizado.", "success");
+      } catch (error) {
+        setFeedback(el.saleFeedback, `No se pudo actualizar reporte de rotacion: ${error.message}`, "error");
+      }
+    });
+  }
+
   el.closureDate.addEventListener("change", () => {
     renderClosure();
     renderClosureHistory();
@@ -2761,6 +2951,7 @@ async function init() {
   renderProducts();
   renderCart();
   renderSales();
+  renderInactiveProducts();
   renderClosure();
   renderClosureHistory();
   await restoreSession();
