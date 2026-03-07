@@ -49,3 +49,29 @@ Opcionales:
 - Salida con lineas `[PASS]` en cada paso.
 - Exit code `0` en exito.
 - Exit code `1` si falla algun control.
+
+
+## 3) Verificar historial de movimientos de inventario
+
+Con un usuario autenticado (owner/staff) consulta:
+
+`GET /inventory/movements?limit=20`
+
+Filtros opcionales:
+- `productId`
+- `externalId`
+- `type` (`entrada`, `salida`, `ajuste`)
+
+Ejemplo rapido en PowerShell:
+
+```powershell
+$login = Invoke-RestMethod -Method Post -Uri "http://localhost:3001/auth/login" -Body (@{
+  tenantCode = "negocio-dos"
+  username = "owner2"
+  password = "123456"
+} | ConvertTo-Json) -ContentType "application/json"
+
+Invoke-RestMethod -Method Get -Uri "http://localhost:3001/inventory/movements?limit=5" -Headers @{
+  Authorization = "Bearer $($login.token)"
+}
+```

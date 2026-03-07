@@ -127,6 +127,7 @@ async function main() {
   const requiredTables = [
     "tenants",
     "tenant_branding",
+    "inventory_movements",
     "users",
     "products",
     "orders",

@@ -439,6 +439,89 @@ function normalizeProductWritePayload(raw) {
   };
 }
 
+const INVENTORY_MOVEMENT_TYPES = new Set(["entrada", "salida", "ajuste"]);
+
+function normalizeInventoryMovementType(raw) {
+  const value = String(raw || "")
+    .trim()
+    .toLowerCase();
+  return INVENTORY_MOVEMENT_TYPES.has(value) ? value : null;
+}
+
+function normalizeInventoryMovementRow(row) {
+  return {
+    id: toInt(pick(row, "id"), 0),
+    tenant_id: toTenantId(pick(row, "tenant_id", "tenantId"), 0),
+    product_id: toInt(pick(row, "product_id", "productId"), 0) || null,
+    product_external_id: String(pick(row, "product_external_id", "productExternalId") || ""),
+    product_nombre: String(pick(row, "product_nombre", "productNombre") || ""),
+    movement_type: normalizeInventoryMovementType(
+      pick(row, "movement_type", "movementType")
+    ) || "ajuste",
+    delta_boxes: toNumber(pick(row, "delta_boxes", "deltaBoxes"), 0),
+    stock_before: toNumber(pick(row, "stock_before", "stockBefore"), 0),
+    stock_after: toNumber(pick(row, "stock_after", "stockAfter"), 0),
+    reason: String(pick(row, "reason") || ""),
+    ref_type: String(pick(row, "ref_type", "refType") || ""),
+    ref_id: String(pick(row, "ref_id", "refId") || ""),
+    user_id: toInt(pick(row, "user_id", "userId"), 0) || null,
+    user_name: String(pick(row, "user_name", "userName") || ""),
+    created_at: pick(row, "created_at", "createdAt") || null,
+  };
+}
+
+async function recordInventoryMovement(db, input = {}) {
+  const tenantId = toTenantId(input.tenantId, 0);
+  if (!tenantId) return false;
+
+  const stockBefore = toNumber(input.stockBefore, 0);
+  const stockAfter = toNumber(input.stockAfter, 0);
+  const rawDelta =
+    input.deltaBoxes === undefined || input.deltaBoxes === null
+      ? stockAfter - stockBefore
+      : toNumber(input.deltaBoxes, 0);
+
+  if (!Number.isFinite(rawDelta) || Math.abs(rawDelta) < 1e-9) return false;
+
+  const movementType =
+    normalizeInventoryMovementType(input.movementType) || (rawDelta > 0 ? "entrada" : "salida");
+
+  const productId = toInt(input.productId, 0);
+  const productExternalId = String(input.productExternalId || "").trim();
+  const productNombre = String(input.productNombre || "").trim();
+  const reason = String(input.reason || "").trim();
+  const refType = String(input.refType || "").trim();
+  const refId = String(input.refId || "").trim();
+  const userId = toInt(input.userId ?? input.actor?.id, 0);
+  const userName = String(input.userName || input.actor?.username || "").trim();
+
+  await db.run(
+    `
+    INSERT INTO inventory_movements
+    (tenant_id, product_id, product_external_id, product_nombre, movement_type, delta_boxes,
+     stock_before, stock_after, reason, ref_type, ref_id, user_id, user_name)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+    `,
+    [
+      tenantId,
+      productId > 0 ? productId : null,
+      productExternalId || null,
+      productNombre || null,
+      movementType,
+      rawDelta,
+      stockBefore,
+      stockAfter,
+      reason || null,
+      refType || null,
+      refId || null,
+      userId > 0 ? userId : null,
+      userName || null,
+    ]
+  );
+
+  return true;
+}
+
 const signToken = (user) =>
   jwt.sign(
     {
@@ -1382,15 +1465,19 @@ app.post("/products", authRequired, async (req, res) => {
   const tenantId = req.user.tenant_id;
   const p = normalized.data;
   const externalId = p.externalId || p.id || null;
+  const movementTypeInput = normalizeInventoryMovementType(
+    pick(p, "stockMovementType", "movementType")
+  );
+  const movementReasonInput = String(pick(p, "stockReason", "movementReason", "reason") || "").trim();
 
   const db = await dbPromise;
   if (externalId) {
     const existing = await db.get(
-      "SELECT id, nombre, stockCajas FROM products WHERE externalId = ? AND tenant_id = ?",
+      "SELECT id, nombre, stockCajas, externalId FROM products WHERE externalId = ? AND tenant_id = ?",
       [externalId, tenantId]
     );
     if (existing && existing.id) {
-      const previousStock = toInt(existing.stockCajas, Number.MAX_SAFE_INTEGER);
+      const previousStock = toInt(existing.stockCajas, 0);
       const nextStock = toInt(p.stockCajas, 0);
       await db.run(
         `
@@ -1420,6 +1507,21 @@ app.post("/products", authRequired, async (req, res) => {
           tenantId,
         ]
       );
+
+      await recordInventoryMovement(db, {
+        tenantId,
+        productId: existing.id,
+        productExternalId: existing.externalId || externalId,
+        productNombre: p.nombre || existing.nombre || "",
+        stockBefore: previousStock,
+        stockAfter: nextStock,
+        movementType: movementTypeInput,
+        reason: movementReasonInput || "actualizacion_producto",
+        refType: "products_upsert_external",
+        refId: String(externalId),
+        actor: req.user,
+      });
+
       if (crossedIntoLowStock(previousStock, nextStock)) {
         runNonBlocking("stock-low-external-upsert", async () => {
           await sendPushToRoles({
@@ -1440,6 +1542,7 @@ app.post("/products", authRequired, async (req, res) => {
       return res.json({ id: existing.id, updated: true });
     }
   }
+
   const initialStock = toInt(p.stockCajas, 0);
   const result = await db.run(
     `
@@ -1469,6 +1572,20 @@ app.post("/products", authRequired, async (req, res) => {
       toNumber(p.ofertaPrecioSobre),
     ]
   );
+
+  await recordInventoryMovement(db, {
+    tenantId,
+    productId: result.lastID,
+    productExternalId: externalId,
+    productNombre: p.nombre || "",
+    stockBefore: 0,
+    stockAfter: initialStock,
+    movementType: movementTypeInput || "entrada",
+    reason: movementReasonInput || "creacion_producto",
+    refType: "products_create",
+    refId: String(externalId || result.lastID || ""),
+    actor: req.user,
+  });
 
   if (isLowStock(initialStock)) {
     runNonBlocking("stock-low-create", async () => {
@@ -1500,13 +1617,18 @@ app.put("/products/:id", authRequired, async (req, res) => {
   const normalized = normalizeProductWritePayload(req.body || {});
   if (normalized.error) return res.status(400).json({ error: normalized.error });
   const p = normalized.data;
+  const movementTypeInput = normalizeInventoryMovementType(
+    pick(p, "stockMovementType", "movementType")
+  );
+  const movementReasonInput = String(pick(p, "stockReason", "movementReason", "reason") || "").trim();
+
   const db = await dbPromise;
   const existing = await db.get(
     "SELECT id, nombre, stockCajas, externalId FROM products WHERE id = ? AND tenant_id = ?",
     [id, tenantId]
   );
   if (!existing?.id) return res.status(404).json({ error: "Producto no encontrado" });
-  const previousStock = toInt(existing?.stockCajas, Number.MAX_SAFE_INTEGER);
+  const previousStock = toInt(existing?.stockCajas, 0);
   const nextStock = toInt(p.stockCajas, 0);
 
   await db.run(
@@ -1538,6 +1660,20 @@ app.put("/products/:id", authRequired, async (req, res) => {
     ]
   );
 
+  await recordInventoryMovement(db, {
+    tenantId,
+    productId: id,
+    productExternalId: existing.externalId || null,
+    productNombre: p.nombre || existing.nombre || "",
+    stockBefore: previousStock,
+    stockAfter: nextStock,
+    movementType: movementTypeInput,
+    reason: movementReasonInput || "actualizacion_producto",
+    refType: "products_update_id",
+    refId: String(id),
+    actor: req.user,
+  });
+
   if (existing?.id && crossedIntoLowStock(previousStock, nextStock)) {
     runNonBlocking("stock-low-id-update", async () => {
       await sendPushToRoles({
@@ -1564,10 +1700,24 @@ app.put("/products/external/:externalId", authRequired, async (req, res) => {
   const tenantId = req.user.tenant_id;
   const externalId = String(req.params.externalId || "").trim();
   if (!externalId) return res.status(400).json({ error: "externalId invalido" });
+
   const normalized = normalizeProductWritePayload(req.body || {});
   if (normalized.error) return res.status(400).json({ error: normalized.error });
   const p = normalized.data;
+  const movementTypeInput = normalizeInventoryMovementType(
+    pick(p, "stockMovementType", "movementType")
+  );
+  const movementReasonInput = String(pick(p, "stockReason", "movementReason", "reason") || "").trim();
+
   const db = await dbPromise;
+  const existing = await db.get(
+    "SELECT id, nombre, stockCajas, externalId FROM products WHERE externalId = ? AND tenant_id = ?",
+    [externalId, tenantId]
+  );
+  if (!existing?.id) return res.status(404).json({ error: "Producto no encontrado" });
+
+  const previousStock = toInt(existing.stockCajas, 0);
+  const nextStock = toInt(p.stockCajas, 0);
 
   await db.run(
     `
@@ -1598,7 +1748,20 @@ app.put("/products/external/:externalId", authRequired, async (req, res) => {
     ]
   );
 
-  const nextStock = toInt(p.stockCajas, 0);
+  await recordInventoryMovement(db, {
+    tenantId,
+    productId: existing.id,
+    productExternalId: existing.externalId || externalId,
+    productNombre: p.nombre || existing.nombre || "",
+    stockBefore: previousStock,
+    stockAfter: nextStock,
+    movementType: movementTypeInput,
+    reason: movementReasonInput || "actualizacion_producto",
+    refType: "products_update_external",
+    refId: String(externalId),
+    actor: req.user,
+  });
+
   if (isLowStock(nextStock)) {
     runNonBlocking("stock-low-external-update", async () => {
       await sendPushToRoles({
@@ -1625,8 +1788,34 @@ app.delete("/products/:id", authRequired, async (req, res) => {
   const id = toInt(req.params.id, 0);
   if (!id) return res.status(400).json({ error: "ID invalido" });
 
+  const movementReasonInput = String(
+    pick(req.query, "reason", "stockReason", "movementReason") || ""
+  ).trim();
+
   const db = await dbPromise;
+  const existing = await db.get(
+    "SELECT id, nombre, stockCajas, externalId FROM products WHERE id = ? AND tenant_id = ?",
+    [id, tenantId]
+  );
+  if (!existing?.id) return res.status(404).json({ error: "Producto no encontrado" });
+
+  const previousStock = toInt(existing.stockCajas, 0);
   await db.run("DELETE FROM products WHERE id = ? AND tenant_id = ?", [id, tenantId]);
+
+  await recordInventoryMovement(db, {
+    tenantId,
+    productId: id,
+    productExternalId: existing.externalId || null,
+    productNombre: existing.nombre || "",
+    stockBefore: previousStock,
+    stockAfter: 0,
+    movementType: "salida",
+    reason: movementReasonInput || "eliminacion_producto",
+    refType: "products_delete_id",
+    refId: String(id),
+    actor: req.user,
+  });
+
   res.json({ ok: true });
 });
 
@@ -1635,17 +1824,94 @@ app.delete("/products/external/:externalId", authRequired, async (req, res) => {
   const externalId = String(req.params.externalId || "").trim();
   if (!externalId) return res.status(400).json({ error: "externalId invalido" });
 
+  const movementReasonInput = String(
+    pick(req.query, "reason", "stockReason", "movementReason") || ""
+  ).trim();
+
   const db = await dbPromise;
-  await db.run("DELETE FROM products WHERE externalId = ? AND tenant_id = ?", [
-    externalId,
+  const existing = await db.get(
+    "SELECT id, nombre, stockCajas, externalId FROM products WHERE externalId = ? AND tenant_id = ?",
+    [externalId, tenantId]
+  );
+  if (!existing?.id) return res.status(404).json({ error: "Producto no encontrado" });
+
+  const previousStock = toInt(existing.stockCajas, 0);
+  await db.run("DELETE FROM products WHERE externalId = ? AND tenant_id = ?", [externalId, tenantId]);
+
+  await recordInventoryMovement(db, {
     tenantId,
-  ]);
+    productId: existing.id,
+    productExternalId: existing.externalId || externalId,
+    productNombre: existing.nombre || "",
+    stockBefore: previousStock,
+    stockAfter: 0,
+    movementType: "salida",
+    reason: movementReasonInput || "eliminacion_producto",
+    refType: "products_delete_external",
+    refId: String(externalId),
+    actor: req.user,
+  });
+
   res.json({ ok: true });
 });
 
-/* ============================
-   Pedidos
-============================ */
+app.get("/inventory/movements", authRequired, async (req, res) => {
+  const tenantId = req.user.tenant_id;
+  const page = Math.max(1, toInt(req.query?.page, 1));
+  const requestedLimit = toInt(req.query?.limit, 30);
+  const limit = Math.min(200, Math.max(1, requestedLimit));
+  const offset = (page - 1) * limit;
+
+  const productId = toInt(pick(req.query, "productId", "product_id"), 0);
+  const productExternalId = String(
+    pick(req.query, "externalId", "productExternalId", "product_external_id") || ""
+  ).trim();
+  const movementType = normalizeInventoryMovementType(
+    pick(req.query, "type", "movementType", "movement_type")
+  );
+
+  const where = ["tenant_id = ?"];
+  const params = [tenantId];
+
+  if (productId > 0) {
+    where.push("product_id = ?");
+    params.push(productId);
+  }
+  if (productExternalId) {
+    where.push("product_external_id = ?");
+    params.push(productExternalId);
+  }
+  if (movementType) {
+    where.push("movement_type = ?");
+    params.push(movementType);
+  }
+
+  const whereSql = where.join(" AND ");
+  const db = await dbPromise;
+  const totalRow = await db.get(`SELECT COUNT(*) as c FROM inventory_movements WHERE ${whereSql}`, params);
+  const total = toInt(totalRow?.c, 0);
+
+  const rows = await db.all(
+    `
+    SELECT *
+    FROM inventory_movements
+    WHERE ${whereSql}
+    ORDER BY id DESC
+    LIMIT ? OFFSET ?
+    `,
+    [...params, limit, offset]
+  );
+
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  res.json({
+    items: rows.map(normalizeInventoryMovementRow),
+    page,
+    limit,
+    total,
+    totalPages,
+  });
+});
+
 app.get("/orders", authRequired, async (req, res) => {
   const tenantId = req.user.tenant_id;
   const db = await dbPromise;

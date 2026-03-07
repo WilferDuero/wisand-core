@@ -39,6 +39,9 @@ async function main() {
   await db.get(
     "SELECT tenant_id, date_key, start_time, end_time, expected_cash, cash_diff FROM cash_closures LIMIT 1"
   );
+  await db.get(
+    "SELECT tenant_id, product_id, movement_type, delta_boxes, stock_before, stock_after FROM inventory_movements LIMIT 1"
+  );
 
   const tenant = await db.get("SELECT id, name, code, created_at FROM tenants WHERE id = ?", [
     DEFAULT_TENANT_ID,

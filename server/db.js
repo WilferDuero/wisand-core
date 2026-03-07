@@ -127,6 +127,24 @@ async function applySqliteMultiTenantMigration(db) {
       created_by_username TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS inventory_movements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL,
+      product_id INTEGER,
+      product_external_id TEXT,
+      product_nombre TEXT,
+      movement_type TEXT NOT NULL,
+      delta_boxes REAL NOT NULL,
+      stock_before REAL,
+      stock_after REAL,
+      reason TEXT,
+      ref_type TEXT,
+      ref_id TEXT,
+      user_id INTEGER,
+      user_name TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   const alterStatements = [
@@ -220,6 +238,9 @@ async function applySqliteMultiTenantMigration(db) {
     "CREATE INDEX IF NOT EXISTS idx_push_tokens_tenant_role_active ON push_tokens(tenant_id, role, active);",
     "CREATE INDEX IF NOT EXISTS idx_cash_closures_tenant_date ON cash_closures(tenant_id, date_key);",
     "CREATE INDEX IF NOT EXISTS idx_cash_closures_tenant_created ON cash_closures(tenant_id, created_at DESC);",
+    "CREATE INDEX IF NOT EXISTS idx_inventory_movements_tenant_created ON inventory_movements(tenant_id, created_at DESC);",
+    "CREATE INDEX IF NOT EXISTS idx_inventory_movements_tenant_product ON inventory_movements(tenant_id, product_id, created_at DESC);",
+    "CREATE INDEX IF NOT EXISTS idx_inventory_movements_tenant_external ON inventory_movements(tenant_id, product_external_id, created_at DESC);",
   ];
   for (const stmt of indexStatements) {
     try {
@@ -268,6 +289,25 @@ async function applyPostgresMultiTenantMigration(pool) {
       notes TEXT,
       created_by_user_id BIGINT,
       created_by_username TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    `,
+    `
+    CREATE TABLE IF NOT EXISTS inventory_movements (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT NOT NULL,
+      product_id BIGINT,
+      product_external_id TEXT,
+      product_nombre TEXT,
+      movement_type TEXT NOT NULL,
+      delta_boxes REAL NOT NULL,
+      stock_before REAL,
+      stock_after REAL,
+      reason TEXT,
+      ref_type TEXT,
+      ref_id TEXT,
+      user_id BIGINT,
+      user_name TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     `,
@@ -348,6 +388,9 @@ async function applyPostgresMultiTenantMigration(pool) {
     "CREATE INDEX IF NOT EXISTS idx_push_tokens_tenant_role_active ON push_tokens(tenant_id, role, active);",
     "CREATE INDEX IF NOT EXISTS idx_cash_closures_tenant_date ON cash_closures(tenant_id, date_key);",
     "CREATE INDEX IF NOT EXISTS idx_cash_closures_tenant_created ON cash_closures(tenant_id, created_at DESC);",
+    "CREATE INDEX IF NOT EXISTS idx_inventory_movements_tenant_created ON inventory_movements(tenant_id, created_at DESC);",
+    "CREATE INDEX IF NOT EXISTS idx_inventory_movements_tenant_product ON inventory_movements(tenant_id, product_id, created_at DESC);",
+    "CREATE INDEX IF NOT EXISTS idx_inventory_movements_tenant_external ON inventory_movements(tenant_id, product_external_id, created_at DESC);",
     "SELECT setval(pg_get_serial_sequence('tenants', 'id'), GREATEST((SELECT MAX(id) FROM tenants), 1));",
   ];
 
@@ -467,6 +510,24 @@ async function initSqlite() {
       notes TEXT,
       created_by_user_id INTEGER,
       created_by_username TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS inventory_movements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL DEFAULT 1,
+      product_id INTEGER,
+      product_external_id TEXT,
+      product_nombre TEXT,
+      movement_type TEXT NOT NULL,
+      delta_boxes REAL NOT NULL,
+      stock_before REAL,
+      stock_after REAL,
+      reason TEXT,
+      ref_type TEXT,
+      ref_id TEXT,
+      user_id INTEGER,
+      user_name TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -610,6 +671,25 @@ async function initPostgres() {
       notes TEXT,
       created_by_user_id BIGINT,
       created_by_username TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    `,
+    `
+    CREATE TABLE IF NOT EXISTS inventory_movements (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT NOT NULL DEFAULT 1,
+      product_id BIGINT,
+      product_external_id TEXT,
+      product_nombre TEXT,
+      movement_type TEXT NOT NULL,
+      delta_boxes REAL NOT NULL,
+      stock_before REAL,
+      stock_after REAL,
+      reason TEXT,
+      ref_type TEXT,
+      ref_id TEXT,
+      user_id BIGINT,
+      user_name TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     `,
