@@ -9,6 +9,7 @@
     "migrate": "node scripts/migrate.js",
     "test:multitenant": "node scripts/test-multitenant.js",
     "test:readiness": "node scripts/test-pos-readiness.js",
+    "backup:db": "node scripts/backup-db.js",
     "import:renacer": "node scripts/import-renacer-remote.js",
     "check:golive": "node scripts/go-live-check.js",
     "tenant:create": "node scripts/create-tenant.js",

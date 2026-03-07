@@ -88,3 +88,6 @@ npm --prefix server run test:multitenant
 ## Operacion Go Live
 
 - Checklist primer cliente: `docs/GO_LIVE_CHECKLIST.md`
+- Manual de entrega owner/staff: `docs/ENTREGA_PRIMER_CLIENTE.md`
+- Backup diario: `npm --prefix server run backup:db`
+

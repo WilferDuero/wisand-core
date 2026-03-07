@@ -70,3 +70,9 @@ Invoke-RestMethod -Method Get -Uri "http://localhost:3001/inventory/movements?li
   Authorization = "Bearer $($login.token)"
 }
 ```
+
+## 5) Backup rapido
+
+```bash
+npm --prefix server run backup:db
+```

@@ -33,34 +33,37 @@ Criterio de salida:
 
 ## 3) Backup y restore
 
-### SQLite (si usas sqlite)
+Comando recomendado (SQLite y Postgres):
 
-Backup rapido:
-
-```powershell
-$ts = Get-Date -Format "yyyyMMdd-HHmmss"
-Copy-Item "server/data/app.db" "server/data/backup-app-$ts.db"
+```bash
+npm --prefix server run backup:db
 ```
 
-Restore:
+### SQLite (si usas sqlite)
+
+El script crea carpeta:
+
+`server/backups/sqlite-YYYYMMDD-HHMMSS/`
+
+Con archivos:
+- `app.db`
+- `app.db-wal` (si existe)
+- `app.db-shm` (si existe)
+- `backup-meta.json`
+
+Restore rapido:
 
 ```powershell
-Copy-Item "server/data/backup-app-YYYYMMDD-HHMMSS.db" "server/data/app.db" -Force
+Copy-Item "server/backups/sqlite-YYYYMMDD-HHMMSS/app.db" "server/data/app.db" -Force
 ```
 
 ### PostgreSQL (produccion recomendado)
 
-Backup:
+El script crea dump:
 
-```bash
-pg_dump "$DATABASE_URL" > wisand-backup-$(date +%Y%m%d-%H%M%S).sql
-```
+`server/backups/postgres-YYYYMMDD-HHMMSS.dump`
 
-Restore:
-
-```bash
-psql "$DATABASE_URL" < wisand-backup-YYYYMMDD-HHMMSS.sql
-```
+Si `pg_dump` no esta en PATH, define `PG_DUMP_BIN` con ruta completa.
 
 ## 4) Alta de un cliente nuevo (sin tocar codigo)
 
