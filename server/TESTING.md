@@ -25,33 +25,28 @@ El script hace:
 - Verifica que tenant 2 si lo vea
 - Si defines credenciales tenant 1, valida aislamiento cruzado
 
-## Variables utiles para el script
+## 3) Ejecutar readiness 4-en-1 (recomendado)
 
-Por defecto toma:
-- `MASTER_KEY` desde `server/.env`
-- API base `http://localhost:3001`
-- tenant 2 id `2`
+```bash
+npm --prefix server run test:readiness
+```
 
-Opcionales:
+Valida en una sola corrida:
+- Flujo owner: crear producto, ajustar stock, revisar movimiento
+- Flujo staff: listar catalogo y registrar venta
+- Seguridad roles: staff bloqueado para crear/editar/eliminar productos (`403`)
+- Presencia de plantilla CSV operativa (`apps/pos-web/examples/catalogo_template.csv`)
+- Chequeo tecnico go-live (`scripts/go-live-check.js`)
+
+Variables opcionales:
 - `TEST_API_BASE`
-- `TEST_TENANT2_ID`
-- `TEST_TENANT2_NAME`
-- `TEST_TENANT2_CODE`
-- `TEST_TENANT2_OWNER`
-- `TEST_TENANT2_PASSWORD`
-- `TEST_TENANT1_ID`
-- `TEST_TENANT1_CODE`
-- `TEST_TENANT1_USERNAME`
-- `TEST_TENANT1_PASSWORD`
+- `READINESS_TENANT_NAME`
+- `READINESS_TENANT_CODE`
+- `READINESS_OWNER_USERNAME`
+- `READINESS_OWNER_PASSWORD`
+- `READINESS_STAFF_PASSWORD`
 
-## Resultado esperado
-
-- Salida con lineas `[PASS]` en cada paso.
-- Exit code `0` en exito.
-- Exit code `1` si falla algun control.
-
-
-## 3) Verificar historial de movimientos de inventario
+## 4) Verificar historial de movimientos de inventario
 
 Con un usuario autenticado (owner/staff) consulta:
 
@@ -66,8 +61,8 @@ Ejemplo rapido en PowerShell:
 
 ```powershell
 $login = Invoke-RestMethod -Method Post -Uri "http://localhost:3001/auth/login" -Body (@{
-  tenantCode = "negocio-dos"
-  username = "owner2"
+  tenant_code = "ready-demo"
+  username = "owner_ready"
   password = "123456"
 } | ConvertTo-Json) -ContentType "application/json"
 

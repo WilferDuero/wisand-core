@@ -1,0 +1,4 @@
+codigo,nombre,categoria,precio_caja,precio_sobre,precio_unidad,sobres_x_caja,unidades_x_sobre,stock_cajas
+7701234567890,Ibuprofeno 400mg,Medicamentos,30000,3000,300,10,10,5
+7709876543210,Vitamina C 1000mg,Suplementos,0,0,20000,1,1,8
+7701112223334,Acetaminofen 500mg,Medicamentos,18000,1800,180,10,10,10

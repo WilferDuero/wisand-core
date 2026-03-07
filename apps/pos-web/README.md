@@ -23,7 +23,7 @@ Abrir en navegador: `http://localhost:3030`
 2. Iniciar sesion multi-tenant.
 3. Buscar o escanear productos.
 4. Si el codigo escaneado no existe, `owner` puede abrir modal de alta rapida y crearlo al vuelo.
-5. `owner` puede crear producto manual, editar y eliminar desde la tabla del catalogo.
+5. `owner` puede crear producto manual, editar, ajustar stock rapido y eliminar desde la tabla del catalogo.
 6. Seleccionar presentacion por producto (unidad/sobre/caja) y agregar al carrito.
 7. Registrar venta (`POST /sales`).
 8. Imprimir ticket A4 o termica.
@@ -32,8 +32,7 @@ Abrir en navegador: `http://localhost:3030`
 11. Definir caja inicial y efectivo real contado (arqueo).
 12. Exportar cierre a CSV.
 13. Guardar cierre en historial del tenant y consultar cierres recientes.
-14. Ver panel de indicadores owner: sin rotacion, top vendidos y stock critico.
-
+14. Ver panel de indicadores owner: sin rotacion, top vendidos, stock critico y movimientos de inventario.
 
 ## Importacion CSV (solo owner)
 
@@ -43,13 +42,16 @@ Encabezados recomendados:
 
 `codigo,nombre,categoria,precio_caja,precio_sobre,precio_unidad,sobres_x_caja,unidades_x_sobre,stock_cajas`
 
-Ejemplo:
+Plantilla lista para usar:
 
-```csv
-codigo,nombre,categoria,precio_caja,precio_sobre,precio_unidad,sobres_x_caja,unidades_x_sobre,stock_cajas
-7701234567890,Ibuprofeno 400mg,Medicamentos,30000,3000,300,10,10,5
-7709876543210,Vitamina C 1000mg,Suplementos,0,0,20000,1,1,8
-```
+`apps/pos-web/examples/catalogo_template.csv`
+
+## Scanner (Barcode to PC)
+
+1. En PC habilita `Keyboard Emulation`.
+2. En plantilla de salida usa: `BARCODE` + `ENTER`.
+3. En POS, enfoca `Escanear codigo de barras y Enter`.
+4. Si el codigo no existe, owner puede crearlo rapido con ese mismo codigo.
 
 ## Atajos de teclado
 

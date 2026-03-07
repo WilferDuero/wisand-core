@@ -8,6 +8,7 @@
     "start": "node index.js",
     "migrate": "node scripts/migrate.js",
     "test:multitenant": "node scripts/test-multitenant.js",
+    "test:readiness": "node scripts/test-pos-readiness.js",
     "import:renacer": "node scripts/import-renacer-remote.js",
     "check:golive": "node scripts/go-live-check.js",
     "tenant:create": "node scripts/create-tenant.js",

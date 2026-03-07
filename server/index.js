@@ -1458,7 +1458,7 @@ app.get("/products", authOptional, async (req, res) => {
   });
 });
 
-app.post("/products", authRequired, async (req, res) => {
+app.post("/products", authRequired, ownerOnly, async (req, res) => {
   const normalized = normalizeProductWritePayload(req.body || {});
   if (normalized.error) return res.status(400).json({ error: normalized.error });
 
@@ -1609,7 +1609,7 @@ app.post("/products", authRequired, async (req, res) => {
   res.json({ id: result.lastID });
 });
 
-app.put("/products/:id", authRequired, async (req, res) => {
+app.put("/products/:id", authRequired, ownerOnly, async (req, res) => {
   const tenantId = req.user.tenant_id;
   const id = toInt(req.params.id, 0);
   if (!id) return res.status(400).json({ error: "ID invalido" });
@@ -1696,7 +1696,7 @@ app.put("/products/:id", authRequired, async (req, res) => {
   res.json({ ok: true });
 });
 
-app.put("/products/external/:externalId", authRequired, async (req, res) => {
+app.put("/products/external/:externalId", authRequired, ownerOnly, async (req, res) => {
   const tenantId = req.user.tenant_id;
   const externalId = String(req.params.externalId || "").trim();
   if (!externalId) return res.status(400).json({ error: "externalId invalido" });
@@ -1783,7 +1783,7 @@ app.put("/products/external/:externalId", authRequired, async (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete("/products/:id", authRequired, async (req, res) => {
+app.delete("/products/:id", authRequired, ownerOnly, async (req, res) => {
   const tenantId = req.user.tenant_id;
   const id = toInt(req.params.id, 0);
   if (!id) return res.status(400).json({ error: "ID invalido" });
@@ -1819,7 +1819,7 @@ app.delete("/products/:id", authRequired, async (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete("/products/external/:externalId", authRequired, async (req, res) => {
+app.delete("/products/external/:externalId", authRequired, ownerOnly, async (req, res) => {
   const tenantId = req.user.tenant_id;
   const externalId = String(req.params.externalId || "").trim();
   if (!externalId) return res.status(400).json({ error: "externalId invalido" });
@@ -2397,4 +2397,5 @@ app.delete("/reviews", authRequired, ownerOnly, async (req, res) => {
 app.listen(PORT, () => {
   console.log(`API lista en http://localhost:${PORT}`);
 });
+
 
