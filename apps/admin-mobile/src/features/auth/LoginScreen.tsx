@@ -14,6 +14,7 @@ import { FormField } from "../../components/FormField";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { buildApiBaseCandidates, resolveReachableApiBase } from "../../lib/api-base-resolver";
 import { apiBaseStorage } from "../../lib/api-base-storage";
+import { loginHintsStorage } from "../../lib/login-hints-storage";
 import { tenantCodeStorage } from "../../lib/tenant-code-storage";
 import { AppTheme } from "../../constants/theme";
 import { useBrandTheme, useBranding } from "../../providers/BrandingProvider";
@@ -39,13 +40,27 @@ export const LoginScreen = () => {
 
   useEffect(() => {
     let active = true;
-    const loadTenantCode = async () => {
-      const stored = await tenantCodeStorage.get();
-      if (active && stored) {
-        setTenantCode(stored);
+    const loadLoginHints = async () => {
+      const storedTenant = await tenantCodeStorage.get();
+      const tenantHintUsername = storedTenant
+        ? await loginHintsStorage.getForTenant(storedTenant)
+        : "";
+      const fallbackUsername = tenantHintUsername
+        ? ""
+        : await loginHintsStorage.getLastUsername();
+
+      if (!active) return;
+
+      if (storedTenant) {
+        setTenantCode(storedTenant);
+      }
+      if (tenantHintUsername) {
+        setUsername(tenantHintUsername);
+      } else if (fallbackUsername) {
+        setUsername(fallbackUsername);
       }
     };
-    void loadTenantCode();
+    void loadLoginHints();
     return () => {
       active = false;
     };
@@ -75,7 +90,10 @@ export const LoginScreen = () => {
 
       await loadBrandingByCode(company);
       await login(user, pass, company);
-      await tenantCodeStorage.set(company);
+      await Promise.all([
+        tenantCodeStorage.set(company),
+        loginHintsStorage.setSuccessfulLogin(company, user),
+      ]);
     } catch (error) {
       const rawMessage = error instanceof Error ? error.message : "No fue posible iniciar sesion.";
       const normalized = rawMessage.toLowerCase();
@@ -240,4 +258,3 @@ const createStyles = (theme: AppTheme) =>
       justifyContent: "center",
     },
   });
-
