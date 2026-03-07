@@ -18,6 +18,8 @@ let resolveToken: TokenResolver = () => null;
 let onUnauthorized: UnauthorizedHandler | null = null;
 let isHandlingUnauthorized = false;
 
+const normalizeBaseUrl = (value: string) => value.trim().replace(/\/+$/, "");
+
 export const setAuthTokenResolver = (resolver: TokenResolver) => {
   resolveToken = resolver;
 };
@@ -34,6 +36,17 @@ export const apiClient = axios.create({
     "X-Tenant-Id": String(ENV.tenantId),
   },
 });
+
+export const getApiBaseUrl = () => {
+  const current = String(apiClient.defaults.baseURL || ENV.apiBaseUrl);
+  return normalizeBaseUrl(current);
+};
+
+export const setApiBaseUrl = (nextBaseUrl: string) => {
+  const normalized = normalizeBaseUrl(nextBaseUrl);
+  if (!normalized) return;
+  apiClient.defaults.baseURL = normalized;
+};
 
 apiClient.interceptors.request.use((config) => {
   const tenantHeader = String(ENV.tenantId);

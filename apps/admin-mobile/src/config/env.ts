@@ -1,5 +1,5 @@
-﻿const PROD_API_BASE_URL = "https://wisand.onrender.com";
-const DEV_API_BASE_URL = PROD_API_BASE_URL;
+const PROD_API_BASE_URL = "https://wisand.onrender.com";
+const DEV_API_BASE_URL = "http://localhost:3001";
 const DEFAULT_TIMEOUT_MS = 12000;
 const DEFAULT_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 const DEFAULT_AUTO_SYNC_INTERVAL_MS = 60 * 1000;
@@ -21,6 +21,25 @@ const readApiBaseUrl = () => {
     return normalizeBaseUrl(envUrl);
   }
   return normalizeBaseUrl(__DEV__ ? DEV_API_BASE_URL : PROD_API_BASE_URL);
+};
+
+const readFallbackApiBaseUrls = () => {
+  const set = new Set<string>();
+  [PROD_API_BASE_URL, DEV_API_BASE_URL].forEach((url) => {
+    const normalized = normalizeBaseUrl(String(url || ""));
+    if (normalized) set.add(normalized);
+  });
+
+  const raw = process.env.EXPO_PUBLIC_API_BASE_FALLBACKS;
+  if (typeof raw === "string" && raw.trim()) {
+    raw
+      .split(",")
+      .map((item) => normalizeBaseUrl(item))
+      .filter(Boolean)
+      .forEach((url) => set.add(url));
+  }
+
+  return Array.from(set);
 };
 
 const readIdleTimeout = () => {
@@ -61,11 +80,10 @@ const readTenantId = () => {
 export const ENV = {
   appName: "WISAND Admin",
   apiBaseUrl: readApiBaseUrl(),
+  apiFallbackUrls: readFallbackApiBaseUrls(),
   apiTimeoutMs: readTimeout(),
   sessionIdleTimeoutMs: readIdleTimeout(),
   autoSyncIntervalMs: readAutoSyncInterval(),
   pushProjectId: readPushProjectId(),
   tenantId: readTenantId(),
 } as const;
-
-

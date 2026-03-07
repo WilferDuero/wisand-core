@@ -8,9 +8,11 @@ import {
   Text,
   View,
 } from "react-native";
+import { getApiBaseUrl, setApiBaseUrl } from "../../api/client";
 import { ActionButton } from "../../components/ActionButton";
 import { FormField } from "../../components/FormField";
 import { ScreenContainer } from "../../components/ScreenContainer";
+import { buildApiBaseCandidates, resolveReachableApiBase } from "../../lib/api-base-resolver";
 import { tenantCodeStorage } from "../../lib/tenant-code-storage";
 import { AppTheme } from "../../constants/theme";
 import { useBrandTheme, useBranding } from "../../providers/BrandingProvider";
@@ -59,11 +61,31 @@ export const LoginScreen = () => {
 
     try {
       setErrorMessage(null);
+
+      const candidates = buildApiBaseCandidates();
+      const resolvedApiBase = await resolveReachableApiBase(candidates, 1500);
+      if (!resolvedApiBase) {
+        throw new Error(
+          "No se pudo conectar con la API. Revisa backend en puerto 3001 y conexion USB/LAN."
+        );
+      }
+      setApiBaseUrl(resolvedApiBase);
+
       await loadBrandingByCode(company);
       await login(user, pass, company);
       await tenantCodeStorage.set(company);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "No fue posible iniciar sesion.";
+      const rawMessage = error instanceof Error ? error.message : "No fue posible iniciar sesion.";
+      const normalized = rawMessage.toLowerCase();
+      const needsApiHint =
+        normalized.includes("network")
+        || normalized.includes("fetch")
+        || normalized.includes("timeout")
+        || normalized.includes("conectar");
+
+      const message = needsApiHint
+        ? `${rawMessage} (API actual: ${getApiBaseUrl()})`
+        : rawMessage;
       setErrorMessage(message);
     }
   };
@@ -216,3 +238,5 @@ const createStyles = (theme: AppTheme) =>
       justifyContent: "center",
     },
   });
+
+
