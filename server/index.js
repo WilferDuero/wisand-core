@@ -390,18 +390,52 @@ function normalizeProductRow(r) {
     categoria: pick(r, "categoria") || "",
     disponibilidad: pick(r, "disponibilidad") || "Disponible",
     imagen: pick(r, "imagen") || "",
-    precioCaja: toNumber(pick(r, "precioCaja", "preciocaja")),
-    precioSobre: toNumber(pick(r, "precioSobre", "preciosobre")),
-    precioUnidad: toNumber(pick(r, "precioUnidad", "preciounidad")),
-    sobresXCaja: toInt(pick(r, "sobresXCaja", "sobresxcaja")),
-    unidadesXSobre: toInt(pick(r, "unidadesXSobre", "unidadesxsobre")),
-    stockCajas: toInt(pick(r, "stockCajas", "stockcajas")),
+    precioCaja: Math.max(0, toNumber(pick(r, "precioCaja", "preciocaja"))),
+    precioSobre: Math.max(0, toNumber(pick(r, "precioSobre", "preciosobre"))),
+    precioUnidad: Math.max(0, toNumber(pick(r, "precioUnidad", "preciounidad"))),
+    sobresXCaja: Math.max(1, toInt(pick(r, "sobresXCaja", "sobresxcaja"), 1)),
+    unidadesXSobre: Math.max(1, toInt(pick(r, "unidadesXSobre", "unidadesxsobre"), 1)),
+    stockCajas: Math.max(0, toInt(pick(r, "stockCajas", "stockcajas"), 0)),
     ofertaActiva: !!pick(r, "ofertaActiva", "ofertaactiva"),
     ofertaTexto: pick(r, "ofertaTexto", "ofertatexto") || "",
-    ofertaPrecioCaja: toNumber(pick(r, "ofertaPrecioCaja", "ofertapreciocaja")),
-    ofertaPrecioSobre: toNumber(pick(r, "ofertaPrecioSobre", "ofertapreciosobre")),
+    ofertaPrecioCaja: Math.max(0, toNumber(pick(r, "ofertaPrecioCaja", "ofertapreciocaja"))),
+    ofertaPrecioSobre: Math.max(0, toNumber(pick(r, "ofertaPrecioSobre", "ofertapreciosobre"))),
     createdAt: pick(r, "createdAt", "createdat"),
     updatedAt: pick(r, "updatedAt", "updatedat"),
+  };
+}
+
+function normalizeProductWritePayload(raw) {
+  const src = raw || {};
+  const nombre = String(src.nombre || "").trim();
+  if (!nombre) return { error: "Nombre requerido" };
+
+  const precioCaja = Math.max(0, toNumber(src.precioCaja, 0));
+  const precioSobre = Math.max(0, toNumber(src.precioSobre, 0));
+  const precioUnidad = Math.max(0, toNumber(src.precioUnidad, 0));
+  if (precioCaja <= 0 && precioSobre <= 0 && precioUnidad <= 0) {
+    return { error: "Debes definir al menos un precio mayor que 0 (caja/sobre/unidad)" };
+  }
+
+  return {
+    data: {
+      ...src,
+      nombre,
+      descripcion: String(src.descripcion || ""),
+      categoria: String(src.categoria || ""),
+      disponibilidad: String(src.disponibilidad || "Disponible"),
+      imagen: String(src.imagen || ""),
+      precioCaja,
+      precioSobre,
+      precioUnidad,
+      sobresXCaja: Math.max(1, toInt(src.sobresXCaja, 1)),
+      unidadesXSobre: Math.max(1, toInt(src.unidadesXSobre, 1)),
+      stockCajas: Math.max(0, toInt(src.stockCajas, 0)),
+      ofertaActiva: toBoolInt(src.ofertaActiva),
+      ofertaTexto: String(src.ofertaTexto || ""),
+      ofertaPrecioCaja: Math.max(0, toNumber(src.ofertaPrecioCaja, 0)),
+      ofertaPrecioSobre: Math.max(0, toNumber(src.ofertaPrecioSobre, 0)),
+    },
   };
 }
 
@@ -1342,9 +1376,11 @@ app.get("/products", authOptional, async (req, res) => {
 });
 
 app.post("/products", authRequired, async (req, res) => {
+  const normalized = normalizeProductWritePayload(req.body || {});
+  if (normalized.error) return res.status(400).json({ error: normalized.error });
+
   const tenantId = req.user.tenant_id;
-  const p = req.body || {};
-  if (!p.nombre) return res.status(400).json({ error: "Nombre requerido" });
+  const p = normalized.data;
   const externalId = p.externalId || p.id || null;
 
   const db = await dbPromise;
@@ -1461,7 +1497,9 @@ app.put("/products/:id", authRequired, async (req, res) => {
   const id = toInt(req.params.id, 0);
   if (!id) return res.status(400).json({ error: "ID invalido" });
 
-  const p = req.body || {};
+  const normalized = normalizeProductWritePayload(req.body || {});
+  if (normalized.error) return res.status(400).json({ error: normalized.error });
+  const p = normalized.data;
   const db = await dbPromise;
   const existing = await db.get(
     "SELECT id, nombre, stockCajas, externalId FROM products WHERE id = ? AND tenant_id = ?",
@@ -1526,8 +1564,9 @@ app.put("/products/external/:externalId", authRequired, async (req, res) => {
   const tenantId = req.user.tenant_id;
   const externalId = String(req.params.externalId || "").trim();
   if (!externalId) return res.status(400).json({ error: "externalId invalido" });
-
-  const p = req.body || {};
+  const normalized = normalizeProductWritePayload(req.body || {});
+  if (normalized.error) return res.status(400).json({ error: normalized.error });
+  const p = normalized.data;
   const db = await dbPromise;
 
   await db.run(
