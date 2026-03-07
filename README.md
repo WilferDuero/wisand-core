@@ -1,11 +1,12 @@
 # WISAND Core
 
-`wisand-core` es la base de producto para WISAND: una plataforma multi-tenant (multiempresa) para operaciones comerciales, con backend API y app movil admin.
+`wisand-core` es la base de producto para WISAND: una plataforma multi-tenant (multiempresa) para operaciones comerciales, con backend API, app movil admin y POS web para PC.
 
 ## Componentes
 
 - API (`server/`): Node.js + Express + SQL manual (sin ORM).
 - Mobile Admin (`apps/admin-mobile/`): app Expo + TypeScript para owner/staff.
+- POS Web PC (`apps/pos-web/`): interfaz de caja/ventas para navegador de escritorio.
 
 ## Stack
 
@@ -13,10 +14,11 @@
 - DB: SQLite y PostgreSQL compatibles
 - Acceso a datos: SQL manual con `db.get/db.all/db.run`
 - Mobile: Expo SDK 54, React Native, TypeScript, Zustand
+- POS Web: HTML, CSS, JavaScript (sin framework)
 
 ## Estructura operativa actual
 
-- Activo: `server/` + `apps/admin-mobile/`
+- Activo: `server/` + `apps/admin-mobile/` + `apps/pos-web/`
 
 ## Quickstart local
 
@@ -36,6 +38,15 @@ npm --prefix apps/admin-mobile run typecheck
 npm --prefix apps/admin-mobile run start
 ```
 
+### 3) POS Web (PC)
+
+```bash
+npm --prefix apps/pos-web install
+npm --prefix apps/pos-web run start
+```
+
+Abre: `http://localhost:3030`
+
 ## Acceso owner WISAND
 
 Para crear/actualizar tu acceso interno como dueno de la app (separado de clientes):
@@ -44,7 +55,7 @@ Para crear/actualizar tu acceso interno como dueno de la app (separado de client
 npm --prefix server run owner:create -- --username "tu_usuario" --password "TuClaveSegura"
 ```
 
-Login en app movil:
+Login en app movil o POS web:
 - codigo de empresa: `wisand`
 - usuario: el que definiste
 - contrasena: la que definiste

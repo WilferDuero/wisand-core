@@ -1,6 +1,6 @@
 # Comandos del Proyecto (WISAND Core)
 
-Guia rapida para backend, base de datos, git y pruebas.
+Guia rapida para backend, base de datos, app movil, POS web y git.
 
 ## 1) PowerShell (Windows)
 
@@ -13,14 +13,14 @@ psql --version
 Generar hash bcrypt:
 
 ```powershell
-cd C:\Users\Wilfer Duero\Desktop\WISAND\wisand-core\server
+cd "C:\Users\Wilfer Duero\Desktop\WISAND\wisand-core\server"
 node -e "const b=require('bcryptjs'); b.hash('TU_CLAVE',10).then(h=>console.log(h))"
 ```
 
 Instalar dependencias backend:
 
 ```powershell
-cd C:\Users\Wilfer Duero\Desktop\WISAND\wisand-core\server
+cd "C:\Users\Wilfer Duero\Desktop\WISAND\wisand-core\server"
 npm install
 ```
 
@@ -84,25 +84,54 @@ git push
 Levantar API:
 
 ```powershell
-cd C:\Users\Wilfer Duero\Desktop\WISAND\wisand-core\server
+cd "C:\Users\Wilfer Duero\Desktop\WISAND\wisand-core\server"
 npm run dev
 ```
 
 Ejecutar migracion:
 
 ```powershell
-cd C:\Users\Wilfer Duero\Desktop\WISAND\wisand-core\server
+cd "C:\Users\Wilfer Duero\Desktop\WISAND\wisand-core\server"
 npm run migrate
 ```
 
 Ejecutar prueba automatica multi-tenant:
 
 ```powershell
-cd C:\Users\Wilfer Duero\Desktop\WISAND\wisand-core\server
+cd "C:\Users\Wilfer Duero\Desktop\WISAND\wisand-core\server"
 npm run test:multitenant
 ```
 
-## 5) Navegador (F12)
+## 5) App movil (Expo)
+
+```powershell
+cd "C:\Users\Wilfer Duero\Desktop\WISAND\wisand-core\apps\admin-mobile"
+npm install
+npm run typecheck
+npm run start:usb
+```
+
+## 6) POS Web para PC
+
+```powershell
+cd "C:\Users\Wilfer Duero\Desktop\WISAND\wisand-core\apps\pos-web"
+npm install
+npm start
+```
+
+Abrir en navegador:
+
+```text
+http://localhost:3030
+```
+
+Login POS:
+- API Base URL: `http://localhost:3001`
+- Codigo negocio: ejemplo `drogueria-renacer`
+- Usuario: owner/staff del tenant
+- Contrasena: la del usuario
+
+## 7) Navegador (F12)
 
 Forzar API remota:
 
@@ -121,13 +150,13 @@ console.log({
 });
 ```
 
-## 6) Advertencias
+## 8) Advertencias
 
 - No subas secretos reales (`.env`, keys privadas).
 - Usa `TRUNCATE` solo si entiendes el impacto.
 - Mantener aislamiento por `tenant_id` en toda query nueva.
 
-## 7) Go Live y Alta de Clientes
+## 9) Go Live y Alta de Clientes
 
 Chequeo pre-produccion:
 
