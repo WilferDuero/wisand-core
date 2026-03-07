@@ -13,6 +13,7 @@ import { ActionButton } from "../../components/ActionButton";
 import { FormField } from "../../components/FormField";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { buildApiBaseCandidates, resolveReachableApiBase } from "../../lib/api-base-resolver";
+import { apiBaseStorage } from "../../lib/api-base-storage";
 import { tenantCodeStorage } from "../../lib/tenant-code-storage";
 import { AppTheme } from "../../constants/theme";
 import { useBrandTheme, useBranding } from "../../providers/BrandingProvider";
@@ -70,6 +71,7 @@ export const LoginScreen = () => {
         );
       }
       setApiBaseUrl(resolvedApiBase);
+      await apiBaseStorage.set(resolvedApiBase);
 
       await loadBrandingByCode(company);
       await login(user, pass, company);
@@ -238,5 +240,4 @@ const createStyles = (theme: AppTheme) =>
       justifyContent: "center",
     },
   });
-
 

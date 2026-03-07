@@ -4,7 +4,8 @@ import { unregisterPushDevice } from "../api/modules/notifications";
 import { AuthUser } from "../types/domain";
 import { getActivePushToken, setActivePushToken } from "../lib/push-session";
 import { tokenStorage } from "../lib/token-storage";
-import { setAuthTokenResolver, setUnauthorizedHandler } from "../api/client";
+import { apiBaseStorage } from "../lib/api-base-storage";
+import { setApiBaseUrl, setAuthTokenResolver, setUnauthorizedHandler } from "../api/client";
 import { useBrandingStore } from "./branding-store";
 
 type AuthStatus = "checking" | "authenticated" | "unauthenticated";
@@ -57,6 +58,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isBootstrapping: true, status: "checking" });
 
     try {
+      const storedApiBase = await apiBaseStorage.get();
+      if (storedApiBase) {
+        setApiBaseUrl(storedApiBase);
+      }
+
       const token = await tokenStorage.get();
       if (!token) {
         setActivePushToken(null);
