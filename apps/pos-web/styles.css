@@ -238,6 +238,26 @@ button:focus {
   margin-bottom: 8px;
 }
 
+.scanner-test {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.scanner-test .btn {
+  height: 36px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.scanner-test .feedback {
+  margin: 0;
+  min-height: 18px;
+  font-size: 12px;
+}
+
 .shortcuts {
   margin: 0 0 10px;
   font-size: 12px;
@@ -824,6 +844,11 @@ th {
 
   .movement-controls {
     grid-template-columns: 1fr;
+  }
+
+  .scanner-test {
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
   .movement-controls .btn {

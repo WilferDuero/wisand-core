@@ -1,5 +1,7 @@
 const STORAGE_KEY = "wisand.pos.session.v1";
 const PREFS_PREFIX = "wisand.pos.prefs.";
+const TECH_MODE_TENANT = "wisand";
+const TECH_MODE_USERNAME = "wisand2927";
 
 const DEFAULT_BRANDING = {
   tenant_code: "",
@@ -59,6 +61,10 @@ const state = {
   quickCreateCode: "",
   quickModalMode: "create",
   quickEditProduct: null,
+  scanProbe: {
+    active: false,
+    timeoutId: null,
+  },
 };
 
 const el = {
@@ -104,6 +110,9 @@ const el = {
   productsTableWrap: document.getElementById("products-table-wrap"),
   productSearch: document.getElementById("product-search"),
   scanInput: document.getElementById("scan-input"),
+  scannerTestTools: document.getElementById("scanner-test-tools"),
+  scanTestBtn: document.getElementById("scan-test-btn"),
+  scanTestFeedback: document.getElementById("scan-test-feedback"),
   refreshProductsBtn: document.getElementById("refresh-products-btn"),
   newProductBtn: document.getElementById("new-product-btn"),
   importCsvBtn: document.getElementById("import-csv-btn"),
@@ -1558,6 +1567,13 @@ function setAuthView(loggedIn) {
   if (el.newProductBtn) el.newProductBtn.classList.toggle("hidden", !loggedIn || !isOwnerSession());
   if (el.importCsvBtn) el.importCsvBtn.classList.toggle("hidden", !loggedIn || !isOwnerSession());
   if (el.inactivePanel) el.inactivePanel.classList.toggle("hidden", !loggedIn || !isOwnerSession());
+  const technical = loggedIn && isTechnicalSession();
+  if (el.scannerTestTools) el.scannerTestTools.classList.toggle("hidden", !technical);
+  if (!technical && el.scanTestFeedback) setFeedback(el.scanTestFeedback, "", "");
+  if (!technical) {
+    clearScanProbeTimeout();
+    setScanProbeState(false);
+  }
 
   if (loggedIn && state.user) {
     el.sessionUser.textContent = `${state.user.username} - ${state.user.role} - ${state.tenantCode}`;
@@ -2208,6 +2224,66 @@ function normalizeScannedCode(rawValue) {
 
 function isOwnerSession() {
   return String(state.user?.role || "").trim().toLowerCase() === "owner";
+}
+
+function clearScanProbeTimeout() {
+  if (state.scanProbe.timeoutId) {
+    clearTimeout(state.scanProbe.timeoutId);
+    state.scanProbe.timeoutId = null;
+  }
+}
+
+function setScanProbeState(active) {
+  state.scanProbe.active = !!active;
+  if (el.scanTestBtn) {
+    el.scanTestBtn.textContent = active ? "Esperando escaneo..." : "Probar escaner";
+  }
+}
+
+function isTechnicalSession() {
+  if (!isOwnerSession()) return false;
+  const tenant = normalizeCode(state.tenantCode);
+  const username = String(state.user?.username || "").trim().toLowerCase();
+  return tenant === TECH_MODE_TENANT && username === TECH_MODE_USERNAME;
+}
+
+function startScanProbe() {
+  if (!isTechnicalSession()) {
+    setFeedback(el.saleFeedback, "Modo tecnico no disponible para esta sesion.", "error");
+    return;
+  }
+
+  clearScanProbeTimeout();
+  setScanProbeState(true);
+  if (el.scanTestFeedback) {
+    setFeedback(el.scanTestFeedback, "Escanea ahora: se espera BARCODE + ENTER.", "");
+  }
+
+  state.scanProbe.timeoutId = setTimeout(() => {
+    setScanProbeState(false);
+    if (el.scanTestFeedback) {
+      setFeedback(el.scanTestFeedback, "No se detecto escaneo. Revisa Barcode to PC (BARCODE + ENTER).", "error");
+    }
+  }, 12000);
+
+  focusScanInput();
+}
+
+function consumeScanProbe(scannedCode) {
+  if (!state.scanProbe.active) return false;
+
+  clearScanProbeTimeout();
+  setScanProbeState(false);
+
+  const code = normalizeScannedCode(scannedCode);
+  if (el.scanTestFeedback) {
+    if (code) {
+      setFeedback(el.scanTestFeedback, "Escaner OK. Codigo recibido: " + code, "success");
+    } else {
+      setFeedback(el.scanTestFeedback, "Escaner detectado pero sin codigo valido.", "error");
+    }
+  }
+  return true;
 }
 
 function renderQuickCategoryOptions() {
@@ -2971,6 +3047,8 @@ function logout() {
   state.inventoryMovements = [];
   state.inventoryMovementsLoaded = false;
   state.quickCreateCode = "";
+  clearScanProbeTimeout();
+  setScanProbeState(false);
   if (el.quickCreateModal) {
     el.quickCreateModal.classList.add("hidden");
   }
@@ -3187,6 +3265,12 @@ function bindEvents() {
       return;
     }
 
+    if (consumeScanProbe(scanned)) {
+      el.scanInput.value = "";
+      focusScanInput();
+      return;
+    }
+
     const product = resolveProductByScan(scanned);
     if (!product) {
       void quickCreateProductFromScan(scanned);
@@ -3269,6 +3353,12 @@ function bindEvents() {
     if (!action || !key) return;
     updateCartItem(key, action);
   });
+
+  if (el.scanTestBtn) {
+    el.scanTestBtn.addEventListener("click", () => {
+      startScanProbe();
+    });
+  }
 
   el.refreshProductsBtn.addEventListener("click", async () => {
     try {

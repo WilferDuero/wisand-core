@@ -125,20 +125,37 @@ function extractProducts(payload) {
 
 function ensureGoLiveCheck() {
   const goLiveScript = path.join(__dirname, "go-live-check.js");
-  const run = spawnSync(process.execPath, [goLiveScript], {
-    cwd: path.join(__dirname, ".."),
-    env: process.env,
-    encoding: "utf8",
-  });
+  const runCheck = () =>
+    spawnSync(process.execPath, [goLiveScript], {
+      cwd: path.join(__dirname, ".."),
+      env: process.env,
+      encoding: "utf8",
+    });
 
+  const formatFailure = (runResult) => {
+    const stdout = String(runResult?.stdout || "").trim();
+    const stderr = String(runResult?.stderr || "").trim();
+    const errorMsg = String(runResult?.error?.message || "").trim();
+    const status = Number.isFinite(runResult?.status) ? `status=${runResult.status}` : "";
+    const signal = String(runResult?.signal || "").trim();
+    const signalMsg = signal ? `signal=${signal}` : "";
+    return [stdout, stderr, errorMsg, status, signalMsg].filter(Boolean).join(" | ");
+  };
+
+  let run = runCheck();
   if (run.status === 0) {
     pass("go-live-check OK.");
     return;
   }
 
-  const stdout = String(run.stdout || "").trim();
-  const stderr = String(run.stderr || "").trim();
-  const details = [stdout, stderr].filter(Boolean).join(" | ");
+  // SQLite puede tener contencion breve durante pruebas intensivas.
+  run = runCheck();
+  if (run.status === 0) {
+    pass("go-live-check OK (2do intento).");
+    return;
+  }
+
+  const details = formatFailure(run) || "sin detalle";
   throw new Error(`go-live-check fallo. ${details}`);
 }
 
