@@ -653,7 +653,7 @@ function renderProducts() {
               </button>
               ${
                 isOwnerSession()
-                  ? `<button class="btn ghost edit-product-btn" data-id="${Number(product.id) || ""}" data-code="${escapeHtml(code)}">Editar</button><button class="btn ghost danger remove-product-btn" data-id="${Number(product.id) || ""}" data-code="${escapeHtml(code)}">Eliminar</button>`
+                  ? `<button class="btn ghost adjust-stock-btn" data-id="${Number(product.id) || ""}" data-code="${escapeHtml(code)}">Ajuste stock</button><button class="btn ghost edit-product-btn" data-id="${Number(product.id) || ""}" data-code="${escapeHtml(code)}">Editar</button><button class="btn ghost danger remove-product-btn" data-id="${Number(product.id) || ""}" data-code="${escapeHtml(code)}">Eliminar</button>`
                   : ""
               }
             </div>
@@ -1672,6 +1672,137 @@ function addProductToCart(product, rawPresentation = "") {
   setFeedback(el.saleFeedback, "", "");
   renderCart();
   focusScanInput();
+}
+
+function parseSignedInteger(rawValue) {
+  const cleaned = String(rawValue || "").trim();
+  if (!cleaned || !/^[+-]?\d+$/.test(cleaned)) return null;
+  const parsed = Number(cleaned);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.trunc(parsed);
+}
+
+function buildProductUpdatePayload(product, nextStockBoxes, movementType, reason) {
+  return {
+    nombre: String(product?.nombre || "").trim(),
+    descripcion: String(product?.descripcion || ""),
+    categoria: String(product?.categoria || "General"),
+    disponibilidad: String(product?.disponibilidad || "Disponible"),
+    imagen: String(product?.imagen || ""),
+    precioCaja: Math.max(0, Number(product?.precioCaja) || 0),
+    precioSobre: Math.max(0, Number(product?.precioSobre) || 0),
+    precioUnidad: Math.max(0, Number(product?.precioUnidad) || 0),
+    sobresXCaja: Math.max(1, Math.trunc(Number(product?.sobresXCaja) || 1)),
+    unidadesXSobre: Math.max(1, Math.trunc(Number(product?.unidadesXSobre) || 1)),
+    stockCajas: Math.max(0, Math.trunc(Number(nextStockBoxes) || 0)),
+    ofertaActiva: !!product?.ofertaActiva,
+    ofertaTexto: String(product?.ofertaTexto || ""),
+    ofertaPrecioCaja: Math.max(0, Number(product?.ofertaPrecioCaja) || 0),
+    ofertaPrecioSobre: Math.max(0, Number(product?.ofertaPrecioSobre) || 0),
+    stockMovementType: movementType,
+    stockReason: reason,
+  };
+}
+
+async function quickAdjustProductStock(product, triggerButton = null) {
+  if (!isOwnerSession()) {
+    setFeedback(el.saleFeedback, "Solo owner puede ajustar stock.", "error");
+    focusScanInput();
+    return;
+  }
+
+  const name = String(product?.nombre || "Producto").trim() || "Producto";
+  const code = normalizeScannedCode(productCode(product));
+  const externalId = normalizeScannedCode(product?.externalId || "");
+  const id = externalId ? 0 : Number(product?.id) || 0;
+  const currentStock = Math.max(0, Math.trunc(Number(product?.stockCajas) || 0));
+
+  const deltaInput = window.prompt(
+    `Ajuste rapido de stock para ${name}${code ? ` (${code})` : ""}.\nIngresa cajas a sumar/restar (ej: 3 o -2).\nStock actual: ${currentStock}`,
+    "0"
+  );
+
+  if (deltaInput === null) {
+    setFeedback(el.saleFeedback, "Ajuste de stock cancelado.", "");
+    focusScanInput();
+    return;
+  }
+
+  const deltaBoxes = parseSignedInteger(deltaInput);
+  if (deltaBoxes === null) {
+    setFeedback(el.saleFeedback, "Ajuste invalido. Usa numero entero (ej: 2 o -1).", "error");
+    focusScanInput();
+    return;
+  }
+
+  if (deltaBoxes === 0) {
+    setFeedback(el.saleFeedback, "No hubo cambios de stock.", "");
+    focusScanInput();
+    return;
+  }
+
+  const nextStock = Math.max(0, currentStock + deltaBoxes);
+  const appliedDelta = nextStock - currentStock;
+  if (appliedDelta === 0) {
+    setFeedback(el.saleFeedback, "No hubo cambios de stock (ya estaba en cero).", "");
+    focusScanInput();
+    return;
+  }
+
+  const reasonInput = window.prompt("Motivo del ajuste (opcional)", "ajuste_rapido_pos");
+  if (reasonInput === null) {
+    setFeedback(el.saleFeedback, "Ajuste de stock cancelado.", "");
+    focusScanInput();
+    return;
+  }
+
+  const reason = String(reasonInput || "").trim() || "ajuste_rapido_pos";
+  const movementType = appliedDelta > 0 ? "entrada" : "salida";
+
+  if (triggerButton) {
+    setBusy(triggerButton, true, "Ajustando...", "Ajuste stock");
+  }
+
+  try {
+    const payload = buildProductUpdatePayload(product, nextStock, movementType, reason);
+
+    if (externalId) {
+      await request(`/products/external/${encodeURIComponent(externalId)}`, {
+        method: "PUT",
+        body: payload,
+      });
+    } else if (id > 0) {
+      await request(`/products/${id}`, {
+        method: "PUT",
+        body: payload,
+      });
+    } else if (code) {
+      await request(`/products/external/${encodeURIComponent(code)}`, {
+        method: "PUT",
+        body: payload,
+      });
+    } else {
+      throw new Error("Producto sin identificador para ajuste.");
+    }
+
+    await loadProducts();
+    await loadInventoryMovements();
+    renderCart();
+
+    const deltaLabel = `${appliedDelta > 0 ? "+" : ""}${appliedDelta}`;
+    setFeedback(
+      el.saleFeedback,
+      `Stock actualizado para ${name}: ${currentStock} -> ${nextStock} cajas (${deltaLabel}).`,
+      "success"
+    );
+  } catch (error) {
+    setFeedback(el.saleFeedback, `No se pudo ajustar stock: ${error.message}`, "error");
+  } finally {
+    if (triggerButton) {
+      setBusy(triggerButton, false, "Ajustando...", "Ajuste stock");
+    }
+    focusScanInput();
+  }
 }
 
 async function deleteProductFromCatalog(product, triggerButton = null) {
@@ -3091,6 +3222,19 @@ function bindEvents() {
       return;
     }
 
+    if (button.classList.contains("adjust-stock-btn")) {
+      const code = String(button.dataset.code || "");
+      const id = Number(button.dataset.id || 0);
+      const product =
+        findProductByCode(code) || state.products.find((item) => Number(item.id) === id) || null;
+      if (!product) {
+        setFeedback(el.saleFeedback, "Producto no encontrado para ajustar stock.", "error");
+        return;
+      }
+      void quickAdjustProductStock(product, button);
+      return;
+    }
+
     if (button.classList.contains("edit-product-btn")) {
       const code = String(button.dataset.code || "");
       const id = Number(button.dataset.id || 0);
@@ -3359,5 +3503,6 @@ async function init() {
 }
 
 void init();
+
 
 
