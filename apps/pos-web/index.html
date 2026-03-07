@@ -171,6 +171,29 @@
               </div>
               <h3 class="insight-subtitle">Stock critico</h3>
               <ul id="critical-stock-list" class="insight-list"></ul>
+              <h3 class="insight-subtitle">Movimientos inventario</h3>
+              <div class="movement-controls">
+                <label>
+                  Tipo
+                  <select id="inventory-movement-type">
+                    <option value="todos">Todos</option>
+                    <option value="entrada">Entrada</option>
+                    <option value="salida">Salida</option>
+                    <option value="ajuste">Ajuste</option>
+                  </select>
+                </label>
+                <label>
+                  Buscar
+                  <input
+                    id="inventory-movement-search"
+                    type="search"
+                    placeholder="Producto, codigo o referencia"
+                    autocomplete="off"
+                  />
+                </label>
+                <button id="refresh-inventory-movements-btn" class="btn ghost" type="button">Actualizar</button>
+              </div>
+              <ul id="inventory-movements-list" class="insight-list movement-list"></ul>
             </div>
 
             <hr class="panel-divider" />
@@ -284,4 +307,5 @@
     <script src="./app.js" defer></script>
   </body>
 </html>
+
 

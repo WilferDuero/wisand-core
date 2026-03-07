@@ -584,6 +584,68 @@ th {
   color: var(--muted);
 }
 
+.movement-controls {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(140px, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.movement-controls .btn {
+  min-width: 96px;
+}
+
+.movement-list {
+  max-height: 280px;
+}
+
+.movement-item {
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.movement-item:last-child {
+  border-bottom: 0;
+}
+
+.movement-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.movement-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.movement-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.movement-pill.entrada {
+  color: #166534;
+  background: rgba(34, 197, 94, 0.16);
+}
+
+.movement-pill.salida {
+  color: #991b1b;
+  background: rgba(220, 38, 38, 0.14);
+}
+
+.movement-pill.ajuste {
+  color: #1d4ed8;
+  background: rgba(59, 130, 246, 0.16);
+}
 @media (max-width: 1280px) {
   .pos-layout {
     grid-template-columns: 1fr;
@@ -759,6 +821,14 @@ th {
   .shift-buttons {
     grid-template-columns: 1fr 1fr;
   }
+
+  .movement-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .movement-controls .btn {
+    width: 100%;
+  }
 }
 
 
@@ -818,3 +888,4 @@ body.modal-open {
     padding: 12px;
   }
 }
+

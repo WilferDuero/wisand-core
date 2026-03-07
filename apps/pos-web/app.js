@@ -54,6 +54,8 @@ const state = {
   inactiveSummary: null,
   topSummary: null,
   criticalSummary: null,
+  inventoryMovements: [],
+  inventoryMovementsLoaded: false,
   quickCreateCode: "",
   quickModalMode: "create",
   quickEditProduct: null,
@@ -133,6 +135,10 @@ const el = {
   topProductsList: document.getElementById("top-products-list"),
   criticalStockThreshold: document.getElementById("critical-stock-threshold"),
   criticalStockList: document.getElementById("critical-stock-list"),
+  inventoryMovementType: document.getElementById("inventory-movement-type"),
+  inventoryMovementSearch: document.getElementById("inventory-movement-search"),
+  refreshInventoryMovementsBtn: document.getElementById("refresh-inventory-movements-btn"),
+  inventoryMovementsList: document.getElementById("inventory-movements-list"),
   closureDate: document.getElementById("closure-date"),
   closureTodayBtn: document.getElementById("closure-today-btn"),
   refreshClosureBtn: document.getElementById("refresh-closure-btn"),
@@ -1107,10 +1113,111 @@ function renderCriticalStock() {
   el.criticalStockList.innerHTML = `${itemsHtml}${moreHtml}`;
 }
 
+function normalizeMovementTypeFilter(rawValue) {
+  const value = String(rawValue || "")
+    .trim()
+    .toLowerCase();
+  if (value === "entrada" || value === "salida" || value === "ajuste") return value;
+  return "";
+}
+
+function movementTypeLabel(rawValue) {
+  const value = normalizeMovementTypeFilter(rawValue);
+  if (value === "entrada") return "Entrada";
+  if (value === "salida") return "Salida";
+  if (value === "ajuste") return "Ajuste";
+  return "Movimiento";
+}
+
+function movementSearchText(row) {
+  return [row?.product_nombre, row?.product_external_id, row?.ref_id, row?.reason, row?.user_name]
+    .map((item) => String(item || "").toLowerCase())
+    .join(" ");
+}
+
+function renderInventoryMovements() {
+  if (!el.inventoryMovementsList || !el.inventoryMovementType || !el.inventoryMovementSearch) return;
+
+  if (!isOwnerSession()) {
+    el.inventoryMovementsList.innerHTML = `<li class="insight-empty">Disponible para owner.</li>`;
+    return;
+  }
+
+  if (!state.inventoryMovementsLoaded) {
+    el.inventoryMovementsList.innerHTML = `<li class="insight-empty">Cargando movimientos...</li>`;
+    return;
+  }
+
+  const selectedType = normalizeMovementTypeFilter(el.inventoryMovementType.value);
+  const search = String(el.inventoryMovementSearch.value || "").trim().toLowerCase();
+
+  const rows = state.inventoryMovements.filter((row) => {
+    const rowType = normalizeMovementTypeFilter(row?.movement_type) || "ajuste";
+    if (selectedType && rowType !== selectedType) return false;
+    if (search && !movementSearchText(row).includes(search)) return false;
+    return true;
+  });
+
+  if (!rows.length) {
+    let empty = "Sin movimientos registrados.";
+    if (search) empty = "Sin resultados para ese filtro.";
+    else if (selectedType) empty = `Sin movimientos de tipo ${movementTypeLabel(selectedType).toLowerCase()}.`;
+    el.inventoryMovementsList.innerHTML = `<li class="insight-empty">${escapeHtml(empty)}</li>`;
+    return;
+  }
+
+  const limit = 30;
+  const itemsHtml = rows
+    .slice(0, limit)
+    .map((row) => {
+      const type = normalizeMovementTypeFilter(row?.movement_type) || "ajuste";
+      const deltaBoxes = Number(row?.delta_boxes) || 0;
+      const deltaLabel = `${deltaBoxes > 0 ? "+" : ""}${formatQty(deltaBoxes, 4)} caja(s)`;
+      const stockBefore = formatQty(Number(row?.stock_before) || 0, 4);
+      const stockAfter = formatQty(Number(row?.stock_after) || 0, 4);
+      const productName = String(row?.product_nombre || "Producto");
+      const code = String(row?.product_external_id || "--");
+      const reason = String(row?.reason || row?.ref_type || "sin detalle");
+      const actor = String(row?.user_name || "sistema");
+      const createdAt = fmtDate(row?.created_at);
+      const refId = String(row?.ref_id || "");
+
+      return `
+        <li class="movement-item">
+          <div class="movement-row">
+            <strong>${escapeHtml(productName)}</strong>
+            <span class="movement-pill ${type}">${escapeHtml(movementTypeLabel(type))}</span>
+          </div>
+          <div class="movement-row">
+            <span class="movement-meta">${escapeHtml(code)} - ${escapeHtml(reason)}</span>
+            <strong>${escapeHtml(deltaLabel)}</strong>
+          </div>
+          <div class="movement-row">
+            <span class="movement-meta">${escapeHtml(stockBefore)} -> ${escapeHtml(stockAfter)} cajas</span>
+            <span class="movement-meta">${escapeHtml(actor)}</span>
+          </div>
+          <div class="movement-row">
+            <span class="movement-meta">${escapeHtml(createdAt)}</span>
+            <span class="movement-meta">${escapeHtml(refId ? `Ref: ${refId}` : "")}</span>
+          </div>
+        </li>
+      `;
+    })
+    .join("");
+
+  const moreHtml =
+    rows.length > limit
+      ? `<li class="insight-more">Mostrando ${limit} de ${rows.length} movimientos.</li>`
+      : "";
+
+  el.inventoryMovementsList.innerHTML = `${itemsHtml}${moreHtml}`;
+}
+
 function renderOwnerInsights() {
   renderInactiveProducts();
   renderTopProducts();
   renderCriticalStock();
+  renderInventoryMovements();
 }
 
 function buildClosureSummary(dateKey) {
@@ -1609,6 +1716,7 @@ async function deleteProductFromCatalog(product, triggerButton = null) {
     });
 
     await loadProducts();
+    await loadInventoryMovements();
     renderCart();
     setFeedback(el.saleFeedback, `Producto eliminado: ${name}.`, "success");
     focusScanInput();
@@ -1937,6 +2045,7 @@ async function importProductsFromCsvText(csvText, sourceLabel = "archivo.csv") {
     }
 
     await loadProducts();
+    await loadInventoryMovements();
 
     const preErrors = parsed.errors.length;
     const totalFailed = failed + preErrors;
@@ -2255,6 +2364,7 @@ async function submitQuickCreateProduct(event) {
       });
 
       await loadProducts();
+      await loadInventoryMovements();
 
       const product = resolveProductByScan(code) || {
         id: Number(created?.id) || 0,
@@ -2335,6 +2445,7 @@ async function submitQuickCreateProduct(event) {
     });
 
     await loadProducts();
+    await loadInventoryMovements();
     renderCart();
     closeQuickCreateModal(false);
     setFeedback(el.saleFeedback, "Producto actualizado.", "success");
@@ -2395,6 +2506,28 @@ async function loadSales() {
   renderOwnerInsights();
   renderClosure();
   renderClosureHistory();
+}
+
+async function loadInventoryMovements() {
+  if (!isOwnerSession()) {
+    state.inventoryMovements = [];
+    state.inventoryMovementsLoaded = true;
+    renderInventoryMovements();
+    return;
+  }
+
+  const selectedType = normalizeMovementTypeFilter(el.inventoryMovementType?.value);
+  const params = new URLSearchParams();
+  params.set("limit", "100");
+  if (selectedType) params.set("type", selectedType);
+
+  state.inventoryMovementsLoaded = false;
+  renderInventoryMovements();
+
+  const payload = await request(`/inventory/movements?${params.toString()}`);
+  state.inventoryMovements = Array.isArray(payload?.items) ? payload.items : [];
+  state.inventoryMovementsLoaded = true;
+  renderInventoryMovements();
 }
 
 function applyLocalStockDeduction() {
@@ -2581,7 +2714,7 @@ async function submitLogin(event) {
 
     persistSession();
     setAuthView(true);
-    await Promise.all([loadProducts(), loadSales(), loadClosureHistory()]);
+    await Promise.all([loadProducts(), loadSales(), loadClosureHistory(), loadInventoryMovements()]);
     setLastTicket(null);
     setFeedback(el.loginFeedback, "Sesion iniciada.", "success");
   } catch (error) {
@@ -2675,6 +2808,7 @@ async function completeSale() {
     filterProducts(el.productSearch.value);
     await loadSales();
     await loadClosureHistory();
+    await loadInventoryMovements();
 
     el.customerName.value = "";
     el.customerPhone.value = "";
@@ -2703,6 +2837,8 @@ function logout() {
   state.inactiveSummary = null;
   state.topSummary = null;
   state.criticalSummary = null;
+  state.inventoryMovements = [];
+  state.inventoryMovementsLoaded = false;
   state.quickCreateCode = "";
   if (el.quickCreateModal) {
     el.quickCreateModal.classList.add("hidden");
@@ -2747,7 +2883,7 @@ async function restoreSession() {
     applyTenantPrefsUi();
     persistSession();
     setAuthView(true);
-    await Promise.all([loadProducts(), loadSales(), loadClosureHistory()]);
+    await Promise.all([loadProducts(), loadSales(), loadClosureHistory(), loadInventoryMovements()]);
     setLastTicket(null);
   } catch {
     logout();
@@ -2993,6 +3129,7 @@ function bindEvents() {
   el.refreshProductsBtn.addEventListener("click", async () => {
     try {
       await loadProducts();
+      await loadInventoryMovements();
       setFeedback(el.saleFeedback, "Catalogo actualizado.", "success");
     } catch (error) {
       setFeedback(el.saleFeedback, `No se pudo actualizar catalogo: ${error.message}`, "error");
@@ -3003,6 +3140,7 @@ function bindEvents() {
     try {
       await loadSales();
       await loadClosureHistory();
+      await loadInventoryMovements();
       setFeedback(el.saleFeedback, "Historial actualizado.", "success");
     } catch (error) {
       setFeedback(el.saleFeedback, `No se pudo actualizar ventas: ${error.message}`, "error");
@@ -3025,6 +3163,34 @@ function bindEvents() {
     });
   }
 
+  if (el.inventoryMovementType) {
+    el.inventoryMovementType.addEventListener("change", () => {
+      void loadInventoryMovements();
+    });
+  }
+
+  if (el.inventoryMovementSearch) {
+    el.inventoryMovementSearch.addEventListener("input", () => {
+      renderInventoryMovements();
+    });
+  }
+
+  if (el.refreshInventoryMovementsBtn) {
+    el.refreshInventoryMovementsBtn.addEventListener("click", async () => {
+      if (!isOwnerSession()) {
+        setFeedback(el.saleFeedback, "Solo owner puede ver movimientos de inventario.", "error");
+        return;
+      }
+
+      try {
+        await loadInventoryMovements();
+        setFeedback(el.saleFeedback, "Movimientos de inventario actualizados.", "success");
+      } catch (error) {
+        setFeedback(el.saleFeedback, `No se pudo actualizar movimientos: ${error.message}`, "error");
+      }
+    });
+  }
+
   if (el.refreshInactiveBtn) {
     el.refreshInactiveBtn.addEventListener("click", async () => {
       if (!isOwnerSession()) {
@@ -3033,7 +3199,7 @@ function bindEvents() {
       }
 
       try {
-        await Promise.all([loadProducts(), loadSales()]);
+        await Promise.all([loadProducts(), loadSales(), loadInventoryMovements()]);
         setFeedback(el.saleFeedback, "Indicadores actualizados.", "success");
       } catch (error) {
         setFeedback(el.saleFeedback, `No se pudo actualizar indicadores: ${error.message}`, "error");
@@ -3193,4 +3359,5 @@ async function init() {
 }
 
 void init();
+
 
