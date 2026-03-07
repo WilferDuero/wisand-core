@@ -145,6 +145,22 @@ async function applySqliteMultiTenantMigration(db) {
       user_name TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS audit_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER,
+      user_id INTEGER,
+      username TEXT,
+      user_role TEXT,
+      action TEXT NOT NULL,
+      entity_type TEXT,
+      entity_id TEXT,
+      endpoint TEXT,
+      method TEXT,
+      status_code INTEGER,
+      meta_json TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   const alterStatements = [
@@ -241,6 +257,8 @@ async function applySqliteMultiTenantMigration(db) {
     "CREATE INDEX IF NOT EXISTS idx_inventory_movements_tenant_created ON inventory_movements(tenant_id, created_at DESC);",
     "CREATE INDEX IF NOT EXISTS idx_inventory_movements_tenant_product ON inventory_movements(tenant_id, product_id, created_at DESC);",
     "CREATE INDEX IF NOT EXISTS idx_inventory_movements_tenant_external ON inventory_movements(tenant_id, product_external_id, created_at DESC);",
+    "CREATE INDEX IF NOT EXISTS idx_audit_events_tenant_created ON audit_events(tenant_id, created_at DESC);",
+    "CREATE INDEX IF NOT EXISTS idx_audit_events_action_created ON audit_events(action, created_at DESC);",
   ];
   for (const stmt of indexStatements) {
     try {
@@ -308,6 +326,22 @@ async function applyPostgresMultiTenantMigration(pool) {
       ref_id TEXT,
       user_id BIGINT,
       user_name TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS audit_events (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT,
+      user_id BIGINT,
+      username TEXT,
+      user_role TEXT,
+      action TEXT NOT NULL,
+      entity_type TEXT,
+      entity_id TEXT,
+      endpoint TEXT,
+      method TEXT,
+      status_code INTEGER,
+      meta_json TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     `,
@@ -391,6 +425,8 @@ async function applyPostgresMultiTenantMigration(pool) {
     "CREATE INDEX IF NOT EXISTS idx_inventory_movements_tenant_created ON inventory_movements(tenant_id, created_at DESC);",
     "CREATE INDEX IF NOT EXISTS idx_inventory_movements_tenant_product ON inventory_movements(tenant_id, product_id, created_at DESC);",
     "CREATE INDEX IF NOT EXISTS idx_inventory_movements_tenant_external ON inventory_movements(tenant_id, product_external_id, created_at DESC);",
+    "CREATE INDEX IF NOT EXISTS idx_audit_events_tenant_created ON audit_events(tenant_id, created_at DESC);",
+    "CREATE INDEX IF NOT EXISTS idx_audit_events_action_created ON audit_events(action, created_at DESC);",
     "SELECT setval(pg_get_serial_sequence('tenants', 'id'), GREATEST((SELECT MAX(id) FROM tenants), 1));",
   ];
 
@@ -528,6 +564,22 @@ async function initSqlite() {
       ref_id TEXT,
       user_id INTEGER,
       user_name TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS audit_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER,
+      user_id INTEGER,
+      username TEXT,
+      user_role TEXT,
+      action TEXT NOT NULL,
+      entity_type TEXT,
+      entity_id TEXT,
+      endpoint TEXT,
+      method TEXT,
+      status_code INTEGER,
+      meta_json TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -690,6 +742,22 @@ async function initPostgres() {
       ref_id TEXT,
       user_id BIGINT,
       user_name TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS audit_events (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT,
+      user_id BIGINT,
+      username TEXT,
+      user_role TEXT,
+      action TEXT NOT NULL,
+      entity_type TEXT,
+      entity_id TEXT,
+      endpoint TEXT,
+      method TEXT,
+      status_code INTEGER,
+      meta_json TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     `,

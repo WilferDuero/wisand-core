@@ -12,6 +12,7 @@ const https = require("https");
 const crypto = require("crypto");
 const {
   dbPromise,
+  usePostgres,
   DEFAULT_TENANT_ID,
   DEFAULT_BRANDING,
   normalizeTenantCode,
@@ -33,6 +34,16 @@ const PUSH_NOTIFY_ROLES = (() => {
     .filter((v) => allowed.has(v));
   return configured.length ? configured : ["owner"];
 })();
+
+const PROCESS_STARTED_AT = new Date();
+const runtimeStats = {
+  requestsTotal: 0,
+  responses4xx: 0,
+  responses5xx: 0,
+  byStatus: new Map(),
+  byMethod: new Map(),
+  byRoute: new Map(),
+};
 
 const DEFAULT_CORS_ORIGINS = [
   "https://wisand.vercel.app",
@@ -69,10 +80,17 @@ if (process.env.NODE_ENV === "production" && JWT_SECRET === "dev-secret-change")
 
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
-app.use((_req, res, next) => {
+app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("X-DNS-Prefetch-Control", "off");
+  res.setHeader("X-Download-Options", "noopen");
+  res.setHeader("X-Permitted-Cross-Domain-Policies", "none");
+  res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
+  if (process.env.NODE_ENV === "production" && (req.secure || req.headers["x-forwarded-proto"] === "https")) {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
   next();
 });
 app.use(
@@ -90,6 +108,28 @@ app.use(
   })
 );
 app.use(express.json({ limit: "1mb" }));
+app.use((req, res, next) => {
+  const requestId = crypto.randomUUID();
+  req.requestId = requestId;
+  res.setHeader("X-Request-Id", requestId);
+
+  const routeKey = `${String(req.method || "GET").toUpperCase()} ${String(req.path || req.originalUrl || "/")}`;
+  res.on("finish", () => {
+    runtimeStats.requestsTotal += 1;
+    const statusKey = String(res.statusCode || 0);
+    runtimeStats.byStatus.set(statusKey, (runtimeStats.byStatus.get(statusKey) || 0) + 1);
+
+    const methodKey = String(req.method || "GET").toUpperCase();
+    runtimeStats.byMethod.set(methodKey, (runtimeStats.byMethod.get(methodKey) || 0) + 1);
+
+    runtimeStats.byRoute.set(routeKey, (runtimeStats.byRoute.get(routeKey) || 0) + 1);
+
+    if (res.statusCode >= 500) runtimeStats.responses5xx += 1;
+    else if (res.statusCode >= 400) runtimeStats.responses4xx += 1;
+  });
+
+  next();
+});
 app.use(async (req, _res, next) => {
   const requestedCode = pickTenantCode(req);
   if (!requestedCode) {
@@ -132,6 +172,16 @@ const safeJson = (val, fallback = []) => {
   try {
     const parsed = JSON.parse(val || "[]");
     return Array.isArray(parsed) ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const safeJsonObject = (val, fallback = {}) => {
+  if (val && typeof val === "object" && !Array.isArray(val)) return val;
+  try {
+    const parsed = JSON.parse(val || "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : fallback;
   } catch {
     return fallback;
   }
@@ -522,6 +572,90 @@ async function recordInventoryMovement(db, input = {}) {
   return true;
 }
 
+const AUDIT_ACTION_MAX = 80;
+const AUDIT_TEXT_MAX = 160;
+const AUDIT_META_MAX = 4000;
+
+function normalizeAuditText(value, max = AUDIT_TEXT_MAX) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, Math.max(1, toInt(max, AUDIT_TEXT_MAX)));
+}
+
+function sanitizeAuditMeta(meta) {
+  if (meta === undefined || meta === null) return "";
+  try {
+    const text = JSON.stringify(meta);
+    return String(text || "").slice(0, AUDIT_META_MAX);
+  } catch {
+    return "";
+  }
+}
+
+function auditIpFingerprint(req) {
+  const ip = String(getClientIp(req) || "unknown");
+  return crypto.createHash("sha256").update(ip).digest("hex").slice(0, 16);
+}
+
+async function recordAuditEvent(db, input = {}) {
+  const action = normalizeAuditText(input.action, AUDIT_ACTION_MAX);
+  if (!action) return false;
+
+  const tenantId = toTenantId(input.tenantId, 0);
+  const userId = toInt(input.userId ?? input.actor?.id, 0);
+  const username = normalizeAuditText(input.username ?? input.actor?.username, 80);
+  const userRole = normalizeAuditText(input.userRole ?? input.actor?.role, 40).toLowerCase();
+  const entityType = normalizeAuditText(input.entityType, 60);
+  const entityId = normalizeAuditText(input.entityId, 80);
+  const endpoint = normalizeAuditText(input.endpoint || input.req?.path || "", 200);
+  const method = normalizeAuditText(input.method || input.req?.method || "", 12).toUpperCase();
+  const statusCode = toInt(input.statusCode, 0);
+  const metaJson = sanitizeAuditMeta(input.meta);
+
+  await db.run(
+    `
+    INSERT INTO audit_events
+    (tenant_id, user_id, username, user_role, action, entity_type, entity_id, endpoint, method, status_code, meta_json)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?)
+    `,
+    [
+      tenantId > 0 ? tenantId : null,
+      userId > 0 ? userId : null,
+      username || null,
+      userRole || null,
+      action,
+      entityType || null,
+      entityId || null,
+      endpoint || null,
+      method || null,
+      statusCode > 0 ? statusCode : null,
+      metaJson || null,
+    ]
+  );
+
+  return true;
+}
+
+function auditAsync(label, db, payload) {
+  runNonBlocking(`audit-${label}`, async () => {
+    await recordAuditEvent(db, payload);
+  });
+}
+
+function topMapEntries(map, limit = 10) {
+  return [...map.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, Math.max(1, toInt(limit, 10)))
+    .map(([key, value]) => ({ key, count: toInt(value, 0) }));
+}
+function parseAuditDateQuery(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString();
+}
 const signToken = (user) =>
   jwt.sign(
     {
@@ -886,6 +1020,138 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, time: new Date().toISOString() });
 });
 
+app.get("/ops/metrics", masterKeyRequired, async (_req, res) => {
+  const db = await dbPromise;
+  const [tenantsRow, usersRow, productsRow, salesRow, auditRow] = await Promise.all([
+    db.get("SELECT COUNT(*) as c FROM tenants"),
+    db.get("SELECT COUNT(*) as c FROM users"),
+    db.get("SELECT COUNT(*) as c FROM products"),
+    db.get("SELECT COUNT(*) as c FROM sales"),
+    db.get("SELECT COUNT(*) as c FROM audit_events"),
+  ]);
+
+  const memory = process.memoryUsage();
+  return res.json({
+    ok: true,
+    started_at: PROCESS_STARTED_AT.toISOString(),
+    uptime_seconds: Math.floor(process.uptime()),
+    runtime: {
+      requests_total: runtimeStats.requestsTotal,
+      responses_4xx: runtimeStats.responses4xx,
+      responses_5xx: runtimeStats.responses5xx,
+      by_status: topMapEntries(runtimeStats.byStatus, 10),
+      by_method: topMapEntries(runtimeStats.byMethod, 10),
+      top_routes: topMapEntries(runtimeStats.byRoute, 15),
+    },
+    process: {
+      pid: process.pid,
+      node: process.version,
+      platform: process.platform,
+      memory_bytes: {
+        rss: toInt(memory.rss, 0),
+        heap_total: toInt(memory.heapTotal, 0),
+        heap_used: toInt(memory.heapUsed, 0),
+        external: toInt(memory.external, 0),
+      },
+    },
+    db: {
+      engine: usePostgres ? "postgres" : "sqlite",
+      tenants: toInt(tenantsRow?.c, 0),
+      users: toInt(usersRow?.c, 0),
+      products: toInt(productsRow?.c, 0),
+      sales: toInt(salesRow?.c, 0),
+      audit_events: toInt(auditRow?.c, 0),
+    },
+  });
+});
+
+app.get("/audit/logs", authRequired, ownerOnly, async (req, res) => {
+  const tenantId = req.user.tenant_id;
+  const limit = Math.min(200, Math.max(1, toInt(req.query?.limit, 50)));
+  const action = normalizeAuditText(req.query?.action, AUDIT_ACTION_MAX);
+  const username = normalizeAuditText(req.query?.username, 80);
+  const entityType = normalizeAuditText(
+    pick(req.query, "entity_type", "entityType"),
+    60
+  );
+  const fromIso = parseAuditDateQuery(req.query?.from);
+  const toIso = parseAuditDateQuery(req.query?.to);
+  const statusCode = toInt(pick(req.query, "status_code", "statusCode"), 0);
+
+  const whereClauses = ["tenant_id = ?"];
+  const params = [tenantId];
+
+  if (action) {
+    whereClauses.push("action = ?");
+    params.push(action);
+  }
+  if (username) {
+    whereClauses.push("username = ?");
+    params.push(username);
+  }
+  if (entityType) {
+    whereClauses.push("entity_type = ?");
+    params.push(entityType);
+  }
+  if (fromIso) {
+    whereClauses.push("created_at >= ?");
+    params.push(fromIso);
+  }
+  if (toIso) {
+    whereClauses.push("created_at <= ?");
+    params.push(toIso);
+  }
+  if (statusCode > 0) {
+    whereClauses.push("status_code = ?");
+    params.push(statusCode);
+  }
+
+  const db = await dbPromise;
+  const rows = await db.all(
+    `
+    SELECT
+      id,
+      tenant_id,
+      user_id,
+      username,
+      user_role,
+      action,
+      entity_type,
+      entity_id,
+      endpoint,
+      method,
+      status_code,
+      meta_json,
+      created_at
+    FROM audit_events
+    WHERE ${whereClauses.join(" AND ")}
+    ORDER BY created_at DESC, id DESC
+    LIMIT ?
+    `,
+    [...params, limit]
+  );
+
+  return res.json(
+    rows.map((row) => {
+      const meta = safeJsonObject(row.meta_json, {});
+      return {
+        id: toInt(row.id, 0),
+        tenant_id: toTenantId(row.tenant_id, tenantId),
+        user_id: toInt(row.user_id, 0),
+        username: row.username || "",
+        user_role: row.user_role || "",
+        action: row.action || "",
+        entity_type: row.entity_type || "",
+        entity_id: row.entity_id || "",
+        endpoint: row.endpoint || "",
+        method: String(row.method || "").toUpperCase(),
+        status_code: toInt(row.status_code, 0),
+        meta,
+        created_at: row.created_at,
+      };
+    })
+  );
+});
 app.get("/", (_req, res) => {
   res.type("text").send("API WISAND OK");
 });
@@ -896,30 +1162,78 @@ app.get("/", (_req, res) => {
 app.post("/auth/login", async (req, res) => {
   const ip = getClientIp(req);
   if (isLoginBlocked(ip)) {
+    runNonBlocking("audit-login-blocked", async () => {
+      const db = await dbPromise;
+      await recordAuditEvent(db, {
+        action: "auth_login_blocked",
+        endpoint: "/auth/login",
+        method: "POST",
+        statusCode: 429,
+        meta: {
+          tenant_code: pickTenantCode(req) || null,
+          username: String(req.body?.username || "").trim() || null,
+          ip_fingerprint: auditIpFingerprint(req),
+        },
+      });
+    });
     return res.status(429).json({ error: "Demasiados intentos. Intenta mas tarde." });
   }
 
+  const db = await dbPromise;
   const { username = "", password = "" } = req.body || {};
   const u = String(username || "").trim();
   const p = String(password || "").trim();
   if (!u || !p) {
     recordLoginFailure(ip);
+    auditAsync("login-missing", db, {
+      action: "auth_login_failed",
+      endpoint: "/auth/login",
+      method: "POST",
+      statusCode: 400,
+      username: u,
+      meta: {
+        reason: "missing_credentials",
+        tenant_code: pickTenantCode(req) || null,
+        ip_fingerprint: auditIpFingerprint(req),
+      },
+    });
     return res.status(400).json({ error: "Usuario y contrasena requeridos" });
   }
 
-  const db = await dbPromise;
   const tenantLogin = await resolveLoginTenant(db, req);
   const tenantId = toTenantId(tenantLogin.tenantId, 0);
   if (!tenantId) {
     recordLoginFailure(ip);
+    auditAsync("login-tenant", db, {
+      action: "auth_login_failed",
+      endpoint: "/auth/login",
+      method: "POST",
+      statusCode: 401,
+      username: u,
+      meta: {
+        reason: "tenant_not_found",
+        tenant_code: tenantLogin.tenantCode || pickTenantCode(req) || null,
+        ip_fingerprint: auditIpFingerprint(req),
+      },
+    });
     return res.status(401).json({ error: "Credenciales invalidas" });
   }
-  const user = await db.get("SELECT * FROM users WHERE username = ? AND tenant_id = ?", [
-    u,
-    tenantId,
-  ]);
+  const user = await db.get("SELECT * FROM users WHERE username = ? AND tenant_id = ?", [u, tenantId]);
   if (!user) {
     recordLoginFailure(ip);
+    auditAsync("login-user", db, {
+      action: "auth_login_failed",
+      tenantId,
+      endpoint: "/auth/login",
+      method: "POST",
+      statusCode: 401,
+      username: u,
+      meta: {
+        reason: "user_not_found",
+        tenant_code: tenantLogin.tenantCode || null,
+        ip_fingerprint: auditIpFingerprint(req),
+      },
+    });
     return res.status(401).json({ error: "Credenciales invalidas" });
   }
 
@@ -927,11 +1241,41 @@ app.post("/auth/login", async (req, res) => {
   const ok = await bcrypt.compare(p, hash);
   if (!ok) {
     recordLoginFailure(ip);
+    auditAsync("login-password", db, {
+      action: "auth_login_failed",
+      tenantId,
+      userId: user.id,
+      username: user.username,
+      userRole: user.role,
+      endpoint: "/auth/login",
+      method: "POST",
+      statusCode: 401,
+      meta: {
+        reason: "invalid_password",
+        tenant_code: tenantLogin.tenantCode || null,
+        ip_fingerprint: auditIpFingerprint(req),
+      },
+    });
     return res.status(401).json({ error: "Credenciales invalidas" });
   }
 
   clearLoginAttempts(ip);
   const token = signToken(user);
+  auditAsync("login-success", db, {
+    action: "auth_login_success",
+    tenantId,
+    userId: user.id,
+    username: user.username,
+    userRole: user.role,
+    endpoint: "/auth/login",
+    method: "POST",
+    statusCode: 200,
+    meta: {
+      tenant_code: tenantLogin.tenantCode || null,
+      ip_fingerprint: auditIpFingerprint(req),
+    },
+  });
+
   res.json({
     token,
     user: {
@@ -1105,7 +1449,26 @@ app.put("/branding", authRequired, ownerOnly, async (req, res) => {
     [tenant.id]
   );
 
-  return res.json(mapBrandingRow(updatedRow, tenant.code || "", tenant.name || ""));
+  const responsePayload = mapBrandingRow(updatedRow, tenant.code || "", tenant.name || "");
+  auditAsync("branding-update", db, {
+    action: "tenant_branding_updated",
+    tenantId: tenant.id,
+    actor: req.user,
+    entityType: "tenant_branding",
+    entityId: String(tenant.id),
+    endpoint: "/branding",
+    method: "PUT",
+    statusCode: 200,
+    meta: {
+      display_name: responsePayload.display_name,
+      logo_url: responsePayload.logo_url || "",
+      primary_color: responsePayload.primary_color,
+      secondary_color: responsePayload.secondary_color,
+      accent_color: responsePayload.accent_color,
+    },
+  });
+
+  return res.json(responsePayload);
 });
 
 app.post("/internal/tenants", masterKeyRequired, async (req, res) => {
@@ -1183,8 +1546,7 @@ app.post("/internal/tenants", masterKeyRequired, async (req, res) => {
         DEFAULT_BRANDING.secondary_color,
         DEFAULT_BRANDING.accent_color,
       ]
-    );
-    return res.status(201).json({
+    );    const responsePayload = {
       tenant: {
         id: tenantId,
         name: tenantName,
@@ -1208,7 +1570,24 @@ app.post("/internal/tenants", masterKeyRequired, async (req, res) => {
         tenantCode,
         tenantName
       ),
+    };
+
+    auditAsync("tenant-create-internal", db, {
+      action: "tenant_created_internal",
+      tenantId,
+      entityType: "tenant",
+      entityId: String(tenantId),
+      endpoint: "/internal/tenants",
+      method: "POST",
+      statusCode: 201,
+      meta: {
+        tenant_name: tenantName,
+        tenant_code: tenantCode,
+        owner_username: ownerUsername,
+      },
     });
+
+    return res.status(201).json(responsePayload);
   } catch (error) {
     await db.run("DELETE FROM users WHERE tenant_id = ?", [tenantId]);
     await db.run("DELETE FROM tenant_branding WHERE tenant_id = ?", [tenantId]);
@@ -1358,7 +1737,23 @@ app.post("/users", authRequired, ownerOnly, async (req, res) => {
     throw error;
   }
 
-  res.json({ id: result.lastID, tenant_id: tenantId, username: u, role: r });
+  const responsePayload = { id: result.lastID, tenant_id: tenantId, username: u, role: r };
+  auditAsync("user-create", db, {
+    action: "user_created",
+    tenantId,
+    actor: req.user,
+    entityType: "user",
+    entityId: String(result.lastID || ""),
+    endpoint: "/users",
+    method: "POST",
+    statusCode: 200,
+    meta: {
+      username: u,
+      role: r,
+    },
+  });
+
+  res.json(responsePayload);
 });
 
 app.put("/users/:id", authRequired, ownerOnly, async (req, res) => {
@@ -1426,6 +1821,26 @@ app.put("/users/:id", authRequired, ownerOnly, async (req, res) => {
       tenantId,
     ]);
   }
+
+  const changedFields = [];
+  if (username && String(username).trim()) changedFields.push("username");
+  if (password && String(password).trim()) changedFields.push("password");
+  if (nextRoleRaw) changedFields.push("role");
+
+  auditAsync("user-update", db, {
+    action: "user_updated",
+    tenantId,
+    actor: req.user,
+    entityType: "user",
+    entityId: String(id),
+    endpoint: "/users/:id",
+    method: "PUT",
+    statusCode: 200,
+    meta: {
+      changed_fields: changedFields,
+      new_role: nextRoleRaw || null,
+    },
+  });
 
   res.json({ ok: true });
 });
@@ -1539,6 +1954,22 @@ app.post("/products", authRequired, ownerOnly, async (req, res) => {
           });
         });
       }
+      auditAsync("product-upsert-update", db, {
+        action: "product_updated",
+        tenantId,
+        actor: req.user,
+        entityType: "product",
+        entityId: String(existing.id),
+        endpoint: "/products",
+        method: "POST",
+        statusCode: 200,
+        meta: {
+          external_id: externalId,
+          stock_before: previousStock,
+          stock_after: nextStock,
+          upsert: true,
+        },
+      });
       return res.json({ id: existing.id, updated: true });
     }
   }
@@ -1606,7 +2037,24 @@ app.post("/products", authRequired, ownerOnly, async (req, res) => {
     });
   }
 
-  res.json({ id: result.lastID });
+  const responsePayload = { id: result.lastID };
+  auditAsync("product-create", db, {
+    action: "product_created",
+    tenantId,
+    actor: req.user,
+    entityType: "product",
+    entityId: String(result.lastID || ""),
+    endpoint: "/products",
+    method: "POST",
+    statusCode: 200,
+    meta: {
+      external_id: externalId || null,
+      nombre: p.nombre || "",
+      stock_inicial: initialStock,
+    },
+  });
+
+  res.json(responsePayload);
 });
 
 app.put("/products/:id", authRequired, ownerOnly, async (req, res) => {
@@ -1692,6 +2140,22 @@ app.put("/products/:id", authRequired, ownerOnly, async (req, res) => {
       });
     });
   }
+
+  auditAsync("product-update-id", db, {
+    action: "product_updated",
+    tenantId,
+    actor: req.user,
+    entityType: "product",
+    entityId: String(id),
+    endpoint: "/products/:id",
+    method: "PUT",
+    statusCode: 200,
+    meta: {
+      external_id: existing.externalId || null,
+      stock_before: previousStock,
+      stock_after: nextStock,
+    },
+  });
 
   res.json({ ok: true });
 });
@@ -1780,6 +2244,22 @@ app.put("/products/external/:externalId", authRequired, ownerOnly, async (req, r
     });
   }
 
+  auditAsync("product-update-external", db, {
+    action: "product_updated",
+    tenantId,
+    actor: req.user,
+    entityType: "product",
+    entityId: String(existing.id),
+    endpoint: "/products/external/:externalId",
+    method: "PUT",
+    statusCode: 200,
+    meta: {
+      external_id: externalId,
+      stock_before: previousStock,
+      stock_after: nextStock,
+    },
+  });
+
   res.json({ ok: true });
 });
 
@@ -1816,6 +2296,21 @@ app.delete("/products/:id", authRequired, ownerOnly, async (req, res) => {
     actor: req.user,
   });
 
+  auditAsync("product-delete-id", db, {
+    action: "product_deleted",
+    tenantId,
+    actor: req.user,
+    entityType: "product",
+    entityId: String(id),
+    endpoint: "/products/:id",
+    method: "DELETE",
+    statusCode: 200,
+    meta: {
+      external_id: existing.externalId || null,
+      nombre: existing.nombre || "",
+    },
+  });
+
   res.json({ ok: true });
 });
 
@@ -1850,6 +2345,21 @@ app.delete("/products/external/:externalId", authRequired, ownerOnly, async (req
     refType: "products_delete_external",
     refId: String(externalId),
     actor: req.user,
+  });
+
+  auditAsync("product-delete-external", db, {
+    action: "product_deleted",
+    tenantId,
+    actor: req.user,
+    entityType: "product",
+    entityId: String(existing.id),
+    endpoint: "/products/external/:externalId",
+    method: "DELETE",
+    statusCode: 200,
+    meta: {
+      external_id: externalId,
+      nombre: existing.nombre || "",
+    },
   });
 
   res.json({ ok: true });
@@ -2006,10 +2516,25 @@ app.put("/orders/:id/status", authRequired, async (req, res) => {
   if (!targetOrder?.id) return res.status(404).json({ error: "Pedido no encontrado" });
 
   await db.run("UPDATE orders SET estado = ? WHERE id = ? AND tenant_id = ?", [estado, id, tenantId]);
-
+  let saleSync = null;
   if (CLOSED_ORDER_STATES.has(estado)) {
-    await ensureSaleForClosedOrder(db, tenantId, id, req.user);
+    saleSync = await ensureSaleForClosedOrder(db, tenantId, id, req.user);
   }
+
+  auditAsync("order-status-update", db, {
+    action: "order_status_updated",
+    tenantId,
+    actor: req.user,
+    entityType: "order",
+    entityId: String(id),
+    endpoint: "/orders/:id/status",
+    method: "PUT",
+    statusCode: 200,
+    meta: {
+      estado,
+      sale_sync: saleSync,
+    },
+  });
 
   res.json({ ok: true });
 });
@@ -2034,10 +2559,26 @@ app.put("/orders/external/:externalId/status", authRequired, async (req, res) =>
     targetOrder.id,
     tenantId,
   ]);
-
+  let saleSync = null;
   if (CLOSED_ORDER_STATES.has(estado)) {
-    await ensureSaleForClosedOrder(db, tenantId, targetOrder.id, req.user);
+    saleSync = await ensureSaleForClosedOrder(db, tenantId, targetOrder.id, req.user);
   }
+
+  auditAsync("order-status-update-external", db, {
+    action: "order_status_updated",
+    tenantId,
+    actor: req.user,
+    entityType: "order",
+    entityId: String(targetOrder.id),
+    endpoint: "/orders/external/:externalId/status",
+    method: "PUT",
+    statusCode: 200,
+    meta: {
+      external_id: externalId,
+      estado,
+      sale_sync: saleSync,
+    },
+  });
 
   res.json({ ok: true });
 });
@@ -2045,7 +2586,23 @@ app.put("/orders/external/:externalId/status", authRequired, async (req, res) =>
 app.delete("/orders", authRequired, ownerOnly, async (req, res) => {
   const tenantId = req.user.tenant_id;
   const db = await dbPromise;
+  const countRow = await db.get("SELECT COUNT(*) as c FROM orders WHERE tenant_id = ?", [tenantId]);
+  const deletedCount = toInt(countRow?.c, 0);
   await db.run("DELETE FROM orders WHERE tenant_id = ?", [tenantId]);
+
+  auditAsync("orders-delete-all", db, {
+    action: "orders_deleted_all",
+    tenantId,
+    actor: req.user,
+    entityType: "order",
+    endpoint: "/orders",
+    method: "DELETE",
+    statusCode: 200,
+    meta: {
+      deleted_count: deletedCount,
+    },
+  });
+
   res.json({ ok: true });
 });
 
@@ -2215,13 +2772,48 @@ app.post("/sales", authRequired, async (req, res) => {
     ]
   );
 
-  res.json({ id: result.lastID });
+  const responsePayload = { id: result.lastID };
+  auditAsync("sale-create", db, {
+    action: "sale_created",
+    tenantId,
+    actor: req.user,
+    entityType: "sale",
+    entityId: String(result.lastID || ""),
+    endpoint: "/sales",
+    method: "POST",
+    statusCode: 200,
+    meta: {
+      order_id: orderId || null,
+      ref_id: refId || null,
+      total,
+      items_count: items.length,
+      metodo_pago: String(s.metodoPago || ""),
+    },
+  });
+
+  res.json(responsePayload);
 });
 
 app.delete("/sales", authRequired, ownerOnly, async (req, res) => {
   const tenantId = req.user.tenant_id;
   const db = await dbPromise;
+  const countRow = await db.get("SELECT COUNT(*) as c FROM sales WHERE tenant_id = ?", [tenantId]);
+  const deletedCount = toInt(countRow?.c, 0);
   await db.run("DELETE FROM sales WHERE tenant_id = ?", [tenantId]);
+
+  auditAsync("sales-delete-all", db, {
+    action: "sales_deleted_all",
+    tenantId,
+    actor: req.user,
+    entityType: "sale",
+    endpoint: "/sales",
+    method: "DELETE",
+    statusCode: 200,
+    meta: {
+      deleted_count: deletedCount,
+    },
+  });
+
   res.json({ ok: true });
 });
 
@@ -2329,6 +2921,27 @@ app.post("/closures", authRequired, async (req, res) => {
       ])
     : null;
 
+  auditAsync("closure-create", db, {
+    action: "cash_closure_created",
+    tenantId,
+    actor: req.user,
+    entityType: "cash_closure",
+    entityId: insertedId ? String(insertedId) : "",
+    endpoint: "/closures",
+    method: "POST",
+    statusCode: 201,
+    meta: {
+      date_key: dateKey,
+      start_time: startTime,
+      end_time: endTime,
+      opening_cash: openingCash,
+      counted_cash: countedCash,
+      expected_cash: expectedCash,
+      cash_diff: cashDiff,
+      sales_count: salesCount,
+    },
+  });
+
   return res.status(201).json(
     mapCashClosureRow(
       inserted || {
@@ -2397,5 +3010,27 @@ app.delete("/reviews", authRequired, ownerOnly, async (req, res) => {
 app.listen(PORT, () => {
   console.log(`API lista en http://localhost:${PORT}`);
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 

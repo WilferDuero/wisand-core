@@ -128,6 +128,7 @@ async function main() {
     "tenants",
     "tenant_branding",
     "inventory_movements",
+    "audit_events",
     "users",
     "products",
     "orders",
