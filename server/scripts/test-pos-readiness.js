@@ -397,7 +397,12 @@ async function main() {
     warn("No se encontro plantilla CSV operativa en apps/pos-web/examples/catalogo_template.csv.");
   }
 
-  ensureGoLiveCheck();
+  const skipGoLive = String(process.env.READINESS_SKIP_GOLIVE || "").trim() === "1";
+  if (skipGoLive) {
+    warn("go-live-check omitido por READINESS_SKIP_GOLIVE=1.");
+  } else {
+    ensureGoLiveCheck();
+  }
 
   info(`Resumen => PASS:${results.pass} WARN:${results.warn} FAIL:${results.fail}`);
 }
