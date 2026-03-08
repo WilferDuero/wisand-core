@@ -31,6 +31,14 @@ Criterio de salida:
 - `check:golive` sin `FAIL`
 - `test:multitenant` con salida `[PASS]`
 
+Nota local (Windows): si `NODE_ENV=production` y no existe owner en tenant default, define `ADMIN_PASS` temporal para correr checks.
+
+```powershell
+$env:ADMIN_PASS="TempAdmin#12345"
+npm --prefix server run check:golive
+```
+
+
 ## 3) Backup y restore
 
 Comando recomendado (SQLite y Postgres):
@@ -94,6 +102,8 @@ Si no quiere branding propio, queda fallback WISAND automaticamente.
 - Login con tenant real (`code + username + password`).
 - Crear producto.
 - Crear pedido y cerrar a venta.
+- Validar venta con `Transferencia` (Nequi/Daviplata).
+- Validar venta `Mixto` (efectivo + transferencia) y que cuadre el total.
 - Verificar que otro tenant NO vea esos datos.
 - Verificar notificaciones/push (si aplica).
 
@@ -114,3 +124,5 @@ npm --prefix server run dev
 npm --prefix server run check:golive
 npm --prefix server run tenant:create -- --name "Cliente X" --code "cliente-x" --owner "owner_x" --password "ClaveSegura123"
 ```
+
+

@@ -134,6 +134,7 @@ const el = {
   mixCashAmount: document.getElementById("mix-cash-amount"),
   mixTransferWrap: document.getElementById("mix-transfer-wrap"),
   mixTransferAmount: document.getElementById("mix-transfer-amount"),
+  mixedPaymentFeedback: document.getElementById("mixed-payment-feedback"),
 
   clearCartBtn: document.getElementById("clear-cart-btn"),
   completeSaleBtn: document.getElementById("complete-sale-btn"),
@@ -364,8 +365,8 @@ function buildSalePaymentMethod(total = 0) {
   if (method === "mixto") {
     const cash = toNonNegativeNumber(el.mixCashAmount?.value);
     const transfer = toNonNegativeNumber(el.mixTransferAmount?.value);
-    const safeCash = Math.round(cash);
-    const safeTransfer = Math.round(transfer);
+    const safeCash = formatQty(cash, 2);
+    const safeTransfer = formatQty(transfer, 2);
     return `Mixto - Efectivo ${safeCash} + Transferencia ${providerLabel} ${safeTransfer}`;
   }
 
@@ -397,7 +398,69 @@ function syncTransferProviderUi() {
     if (el.mixCashAmount) el.mixCashAmount.value = "0";
     if (el.mixTransferAmount) el.mixTransferAmount.value = "0";
   }
+
+  syncMixedPaymentBreakdown();
 }
+
+function syncMixedPaymentBreakdown(source = "") {
+  if (!el.paymentMethod || !el.mixedPaymentFeedback) return;
+
+  const method = String(el.paymentMethod.value || "").trim().toLowerCase();
+  const isMixed = method === "mixto";
+
+  if (!isMixed) {
+    setFeedback(el.mixedPaymentFeedback, "", "");
+    el.mixedPaymentFeedback.classList.add("hidden");
+    return;
+  }
+
+  const total = Math.max(0, Number(cartTotals().total) || 0);
+  let cash = toNonNegativeNumber(el.mixCashAmount?.value);
+  let transfer = toNonNegativeNumber(el.mixTransferAmount?.value);
+
+  if (source === "cash") {
+    if (cash > total) cash = total;
+    transfer = Math.max(0, total - cash);
+  } else if (source === "transfer") {
+    if (transfer > total) transfer = total;
+    cash = Math.max(0, total - transfer);
+  }
+
+  if (el.mixCashAmount) el.mixCashAmount.value = formatQty(cash, 2);
+  if (el.mixTransferAmount) el.mixTransferAmount.value = formatQty(transfer, 2);
+
+  const provider = transferProviderLabel(el.transferProvider?.value);
+  const diff = total - (cash + transfer);
+
+  let message =
+    "Total " +
+    money(total) +
+    " | Efectivo " +
+    money(cash) +
+    " | Transferencia (" +
+    provider +
+    ") " +
+    money(transfer) +
+    ".";
+  let tone = "";
+
+  if (total <= 0) {
+    message = "Agrega productos al carrito para calcular el pago mixto.";
+  } else if (cash <= 0 || transfer <= 0) {
+    tone = "error";
+    message += " En mixto debes definir ambos montos (efectivo y transferencia).";
+  } else if (Math.abs(diff) > 0.01) {
+    tone = "error";
+    message += " Diferencia pendiente: " + money(diff) + ".";
+  } else {
+    tone = "success";
+    message += " Cuadre correcto.";
+  }
+
+  setFeedback(el.mixedPaymentFeedback, message, tone);
+  el.mixedPaymentFeedback.classList.remove("hidden");
+}
+
 function parseTimeToMinutes(value, fallback) {
   const raw = String(value || "").trim();
   if (!/^\d{2}:\d{2}$/.test(raw)) return fallback;
@@ -722,6 +785,7 @@ function renderTotals() {
   el.cartCount.textContent = String(totals.count);
   el.cartTotal.textContent = money(totals.total);
   el.totalDisplay.textContent = money(totals.total);
+  syncMixedPaymentBreakdown();
 }
 
 function renderProducts() {
@@ -1956,7 +2020,7 @@ async function deleteProductFromCatalog(product, triggerButton = null) {
   const name = String(product?.nombre || "Producto").trim() || "Producto";
   const label = code ? `${name} (${code})` : `${name} (id ${id})`;
 
-  const confirmed = window.confirm(`Vas a eliminar ${label}. Esta accion no se puede deshacer. ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¿ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â½Continuar?`);
+  const confirmed = window.confirm(`Vas a eliminar ${label}. Esta accion no se puede deshacer. Continuar?`);
   if (!confirmed) {
     setFeedback(el.saleFeedback, "Eliminacion cancelada.", "");
     focusScanInput();
@@ -3092,6 +3156,7 @@ async function completeSale() {
   try {
     const paymentMethodSelected = String(el.paymentMethod?.value || "efectivo").trim().toLowerCase();
     if (paymentMethodSelected === "mixto") {
+      syncMixedPaymentBreakdown();
       const cashAmount = toNonNegativeNumber(el.mixCashAmount?.value);
       const transferAmount = toNonNegativeNumber(el.mixTransferAmount?.value);
 
@@ -3690,6 +3755,24 @@ function bindEvents() {
   if (el.paymentMethod) {
     el.paymentMethod.addEventListener("change", () => {
       syncTransferProviderUi();
+    });
+  }
+
+  if (el.transferProvider) {
+    el.transferProvider.addEventListener("change", () => {
+      syncMixedPaymentBreakdown();
+    });
+  }
+
+  if (el.mixCashAmount) {
+    el.mixCashAmount.addEventListener("input", () => {
+      syncMixedPaymentBreakdown("cash");
+    });
+  }
+
+  if (el.mixTransferAmount) {
+    el.mixTransferAmount.addEventListener("input", () => {
+      syncMixedPaymentBreakdown("transfer");
     });
   }
 

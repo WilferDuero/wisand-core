@@ -450,6 +450,11 @@ th {
   gap: 8px;
 }
 
+.payment-breakdown {
+  margin: 6px 0 8px;
+  font-size: 12px;
+}
+
 .side-panel {
   min-height: 250px;
 }
@@ -923,5 +928,3 @@ body.modal-open {
     padding: 12px;
   }
 }
-
-
