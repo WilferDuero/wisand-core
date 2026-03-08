@@ -123,14 +123,31 @@ function extractProducts(payload) {
   return [];
 }
 
+function isGoLiveSpawnPermissionError(runResult) {
+  const code = String(runResult?.error?.code || "").toUpperCase();
+  const message = String(runResult?.error?.message || "");
+  return code === "EPERM" || code === "EACCES" || /EPERM|EACCES/i.test(message);
+}
+
 function ensureGoLiveCheck() {
   const goLiveScript = path.join(__dirname, "go-live-check.js");
-  const runCheck = () =>
+  const serverDir = path.join(__dirname, "..");
+
+  const runDirect = () =>
     spawnSync(process.execPath, [goLiveScript], {
-      cwd: path.join(__dirname, ".."),
+      cwd: serverDir,
       env: process.env,
       encoding: "utf8",
     });
+
+  const runViaNpm = () => {
+    const npmBin = process.platform === "win32" ? "npm.cmd" : "npm";
+    return spawnSync(npmBin, ["run", "check:golive"], {
+      cwd: serverDir,
+      env: process.env,
+      encoding: "utf8",
+    });
+  };
 
   const formatFailure = (runResult) => {
     const stdout = String(runResult?.stdout || "").trim();
@@ -142,20 +159,33 @@ function ensureGoLiveCheck() {
     return [stdout, stderr, errorMsg, status, signalMsg].filter(Boolean).join(" | ");
   };
 
-  let run = runCheck();
+  let run = runDirect();
   if (run.status === 0) {
     pass("go-live-check OK.");
     return;
   }
 
   // SQLite puede tener contencion breve durante pruebas intensivas.
-  run = runCheck();
+  run = runDirect();
   if (run.status === 0) {
     pass("go-live-check OK (2do intento).");
     return;
   }
 
-  const details = formatFailure(run) || "sin detalle";
+  const fallback = runViaNpm();
+  if (fallback.status === 0) {
+    pass("go-live-check OK (fallback npm).");
+    return;
+  }
+
+  if (isGoLiveSpawnPermissionError(run) || isGoLiveSpawnPermissionError(fallback)) {
+    warn(
+      "go-live-check no se pudo ejecutar por permisos del entorno (EPERM/EACCES). Ejecutalo manual: npm --prefix server run check:golive"
+    );
+    return;
+  }
+
+  const details = formatFailure(fallback) || formatFailure(run) || "sin detalle";
   throw new Error(`go-live-check fallo. ${details}`);
 }
 
@@ -416,3 +446,4 @@ main()
     info(`Resumen => PASS:${results.pass} WARN:${results.warn} FAIL:${results.fail}`);
     process.exit(1);
   });
+
