@@ -128,6 +128,12 @@ const el = {
   customerName: document.getElementById("customer-name"),
   customerPhone: document.getElementById("customer-phone"),
   paymentMethod: document.getElementById("payment-method"),
+  transferProviderWrap: document.getElementById("transfer-provider-wrap"),
+  transferProvider: document.getElementById("transfer-provider"),
+  mixCashWrap: document.getElementById("mix-cash-wrap"),
+  mixCashAmount: document.getElementById("mix-cash-amount"),
+  mixTransferWrap: document.getElementById("mix-transfer-wrap"),
+  mixTransferAmount: document.getElementById("mix-transfer-amount"),
 
   clearCartBtn: document.getElementById("clear-cart-btn"),
   completeSaleBtn: document.getElementById("complete-sale-btn"),
@@ -278,11 +284,119 @@ function normalizePaymentMethod(value) {
     .replace(/[\u0300-\u036f]/g, "");
 
   if (!normalized) return "otros";
-  if (normalized.includes("efect")) return "efectivo";
-  if (normalized.includes("trans")) return "transferencia";
-  if (normalized.includes("tarj") || normalized.includes("dat")) return "tarjeta";
   if (normalized.includes("mixt")) return "mixto";
+  if (normalized.includes("trans")) return "transferencia";
+  if (normalized.includes("efect")) return "efectivo";
+  if (normalized.includes("tarj") || normalized.includes("dat")) return "tarjeta";
   return "otros";
+}
+
+function normalizeTransferProvider(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized.includes("davi")) return "daviplata";
+  return "nequi";
+}
+
+function transferProviderLabel(value) {
+  return normalizeTransferProvider(value) === "daviplata" ? "Daviplata" : "Nequi";
+}
+
+function toNonNegativeNumber(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, n);
+}
+
+function parseAmountFromText(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return 0;
+  const normalized = raw
+    .replace(/\s+/g, "")
+    .replace(/\.(?=\d{3}(?:\D|$))/g, "")
+    .replace(/,/g, ".")
+    .replace(/[^0-9.-]/g, "");
+  const n = Number(normalized);
+  return Number.isFinite(n) ? Math.max(0, n) : 0;
+}
+
+function parseMixedPaymentDetail(methodText, saleTotal = 0) {
+  const text = String(methodText || "");
+  const providerMatch = text.match(/(nequi|daviplata)/i);
+  const provider = normalizeTransferProvider(providerMatch ? providerMatch[1] : "nequi");
+
+  const cashMatch = text.match(/efectivo[^0-9]*([0-9.,]+)/i);
+  const transferMatch = text.match(/transferencia[^0-9]*([0-9.,]+)/i);
+
+  let cash = parseAmountFromText(cashMatch ? cashMatch[1] : "0");
+  let transfer = parseAmountFromText(transferMatch ? transferMatch[1] : "0");
+  const total = Math.max(0, Number(saleTotal) || 0);
+
+  if (cash <= 0 && transfer > 0 && total > 0) {
+    cash = Math.max(0, total - transfer);
+  } else if (transfer <= 0 && cash > 0 && total > 0) {
+    transfer = Math.max(0, total - cash);
+  }
+
+  if (total > 0) {
+    const sum = cash + transfer;
+    if (sum > total) {
+      const ratio = total / sum;
+      cash *= ratio;
+      transfer *= ratio;
+    }
+  }
+
+  return {
+    efectivo: cash,
+    transferencia: transfer,
+    provider,
+  };
+}
+
+function buildSalePaymentMethod(total = 0) {
+  const method = String(el.paymentMethod?.value || "efectivo").trim().toLowerCase();
+  const providerLabel = transferProviderLabel(el.transferProvider?.value);
+
+  if (method === "transferencia") {
+    return `Transferencia - ${providerLabel}`;
+  }
+
+  if (method === "mixto") {
+    const cash = toNonNegativeNumber(el.mixCashAmount?.value);
+    const transfer = toNonNegativeNumber(el.mixTransferAmount?.value);
+    const safeCash = Math.round(cash);
+    const safeTransfer = Math.round(transfer);
+    return `Mixto - Efectivo ${safeCash} + Transferencia ${providerLabel} ${safeTransfer}`;
+  }
+
+  if (method === "tarjeta") return "tarjeta";
+  if (method === "efectivo") return "efectivo";
+  return method || "efectivo";
+}
+
+function syncTransferProviderUi() {
+  const method = String(el.paymentMethod?.value || "").trim().toLowerCase();
+  const showTransferProvider = method === "transferencia" || method === "mixto";
+  const isMixed = method === "mixto";
+
+  if (el.transferProviderWrap) {
+    el.transferProviderWrap.classList.toggle("hidden", !showTransferProvider);
+  }
+  if (el.mixCashWrap) {
+    el.mixCashWrap.classList.toggle("hidden", !isMixed);
+  }
+  if (el.mixTransferWrap) {
+    el.mixTransferWrap.classList.toggle("hidden", !isMixed);
+  }
+
+  if (showTransferProvider && el.transferProvider) {
+    el.transferProvider.value = normalizeTransferProvider(el.transferProvider.value);
+  }
+
+  if (!isMixed) {
+    if (el.mixCashAmount) el.mixCashAmount.value = "0";
+    if (el.mixTransferAmount) el.mixTransferAmount.value = "0";
+  }
 }
 function parseTimeToMinutes(value, fallback) {
   const raw = String(value || "").trim();
@@ -1264,7 +1378,15 @@ function buildClosureSummary(dateKey) {
 
     const methodRaw = String(sale?.metodoPago || sale?.metodopago || "").trim();
     const methodKey = normalizePaymentMethod(methodRaw);
-    methods[methodKey] += saleTotal;
+
+    if (methodKey === "mixto") {
+      methods.mixto += saleTotal;
+      const mixedDetail = parseMixedPaymentDetail(methodRaw, saleTotal);
+      methods.efectivo += mixedDetail.efectivo;
+      methods.transferencia += mixedDetail.transferencia;
+    } else {
+      methods[methodKey] += saleTotal;
+    }
 
     const items = Array.isArray(sale?.items) ? sale.items : [];
     const saleItems = items.reduce((acc, item) => {
@@ -2968,12 +3090,37 @@ async function completeSale() {
   setBusy(el.completeSaleBtn, true, "Guardando...", "Registrar venta");
 
   try {
+    const paymentMethodSelected = String(el.paymentMethod?.value || "efectivo").trim().toLowerCase();
+    if (paymentMethodSelected === "mixto") {
+      const cashAmount = toNonNegativeNumber(el.mixCashAmount?.value);
+      const transferAmount = toNonNegativeNumber(el.mixTransferAmount?.value);
+
+      if (cashAmount <= 0 || transferAmount <= 0) {
+        setFeedback(
+          el.saleFeedback,
+          "En mixto debes indicar monto en efectivo y monto en transferencia.",
+          "error"
+        );
+        return;
+      }
+
+      const mixedDiff = Math.abs(cashAmount + transferAmount - total);
+      if (mixedDiff > 0.01) {
+        setFeedback(
+          el.saleFeedback,
+          "En mixto la suma de efectivo + transferencia debe ser igual al total.",
+          "error"
+        );
+        return;
+      }
+    }
+
     const refId = `pos-${Date.now()}`;
     const payload = {
       refId,
       clienteNombre: String(el.customerName.value || "").trim(),
       clienteTelefono: String(el.customerPhone.value || "").trim(),
-      metodoPago: String(el.paymentMethod.value || "efectivo"),
+      metodoPago: buildSalePaymentMethod(total),
       total,
       items: state.cart.map((item) => ({
         id: item.id || item.code,
@@ -3540,6 +3687,12 @@ function bindEvents() {
     exportClosureCsv();
   });
 
+  if (el.paymentMethod) {
+    el.paymentMethod.addEventListener("change", () => {
+      syncTransferProviderUi();
+    });
+  }
+
   el.clearCartBtn.addEventListener("click", () => {
     clearCart("Carrito limpiado.");
   });
@@ -3583,6 +3736,7 @@ async function init() {
   applyTenantPrefsUi();
   setLastTicket(null);
   bindEvents();
+  syncTransferProviderUi();
   renderProducts();
   renderCart();
   renderSales();
@@ -3593,6 +3747,4 @@ async function init() {
 }
 
 void init();
-
-
 

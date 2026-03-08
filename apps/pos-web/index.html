@@ -127,6 +127,21 @@
                   <option value="mixto">Mixto</option>
                 </select>
               </label>
+              <label id="transfer-provider-wrap" class="hidden">
+                Transferencia por
+                <select id="transfer-provider">
+                  <option value="nequi">Nequi</option>
+                  <option value="daviplata">Daviplata</option>
+                </select>
+              </label>
+              <label id="mix-cash-wrap" class="hidden">
+                Mixto: monto en efectivo
+                <input id="mix-cash-amount" type="number" min="0" step="100" value="0" />
+              </label>
+              <label id="mix-transfer-wrap" class="hidden">
+                Mixto: monto en transferencia
+                <input id="mix-transfer-amount" type="number" min="0" step="100" value="0" />
+              </label>
             </div>
 
             <div class="cart-actions">
