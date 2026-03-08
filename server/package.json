@@ -13,7 +13,8 @@
     "import:renacer": "node scripts/import-renacer-remote.js",
     "check:golive": "node scripts/go-live-check.js",
     "tenant:create": "node scripts/create-tenant.js",
-    "owner:create": "node scripts/create-super-owner.js"
+    "owner:create": "node scripts/create-super-owner.js",
+    "onboard:client": "node scripts/onboard-client.js"
   },
   "keywords": [
     "wisand",

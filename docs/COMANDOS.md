@@ -175,3 +175,12 @@ Crear negocio contra API remota:
 ```powershell
 npm --prefix server run tenant:create -- --api "https://tu-api.com" --name "Cliente X" --code "cliente-x" --owner "owner_x" --password "ClaveSegura123"
 ```
+
+Alta completa con owner + staff + branding opcional (recomendado):
+
+```powershell
+npm --prefix server run onboard:client -- --name "Cliente X" --code "cliente-x" --owner-user "owner_x" --owner-pass "ClaveSegura123" --staff-user "staff_x" --staff-pass "ClaveSegura123"
+```
+
+Guia corta:
+- `docs/ONBOARDING_CLIENTE_5MIN.md`
