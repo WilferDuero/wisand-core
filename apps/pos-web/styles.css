@@ -606,13 +606,23 @@ th {
 
 .movement-controls {
   display: grid;
-  grid-template-columns: minmax(120px, 0.7fr) minmax(140px, 1fr) auto;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(0, 1fr) auto;
   gap: 8px;
   align-items: end;
 }
 
+.movement-controls > label {
+  min-width: 0;
+}
+
+.movement-controls input,
+.movement-controls select {
+  width: 100%;
+}
+
 .movement-controls .btn {
   min-width: 96px;
+  white-space: nowrap;
 }
 
 .movement-list {
@@ -913,4 +923,5 @@ body.modal-open {
     padding: 12px;
   }
 }
+
 
