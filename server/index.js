@@ -36,6 +36,9 @@ const PUSH_NOTIFY_ROLES = (() => {
 })();
 
 const PROCESS_STARTED_AT = new Date();
+const INSTANCE_ID = process.env.INSTANCE_ID || crypto.randomUUID();
+const DB_ENGINE = usePostgres ? "postgres" : "sqlite";
+
 const runtimeStats = {
   requestsTotal: 0,
   responses4xx: 0,
@@ -112,6 +115,7 @@ app.use((req, res, next) => {
   const requestId = crypto.randomUUID();
   req.requestId = requestId;
   res.setHeader("X-Request-Id", requestId);
+  res.setHeader("X-WISAND-Instance", INSTANCE_ID);
 
   const routeKey = `${String(req.method || "GET").toUpperCase()} ${String(req.path || req.originalUrl || "/")}`;
   res.on("finish", () => {
@@ -1017,7 +1021,14 @@ const crossedIntoLowStock = (beforeStock, afterStock) =>
   !isLowStock(beforeStock) && isLowStock(afterStock);
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, time: new Date().toISOString() });
+  res.json({
+    ok: true,
+    time: new Date().toISOString(),
+    started_at: PROCESS_STARTED_AT.toISOString(),
+    instance_id: INSTANCE_ID,
+    pid: process.pid,
+    db_engine: DB_ENGINE,
+  });
 });
 
 app.get("/ops/metrics", masterKeyRequired, async (_req, res) => {
@@ -2455,7 +2466,7 @@ app.post("/orders", authOptional, async (req, res) => {
       [externalId, tenantId]
     );
     if (existing && existing.id) {
-      return res.json({ id: existing.id, ok: true, existing: true });
+      return res.json({ id: existing.id, ok: true, existing: true, tenant_id: tenantId });
     }
   }
   const result = await db.run(
@@ -2476,7 +2487,7 @@ app.post("/orders", authOptional, async (req, res) => {
     ]
   );
   console.log(
-    `[orders] created id=${result.lastID} externalId=${externalId || "-"} estado=${status} total=${toNumber(total, 0)}`
+    `[orders] created tenant=${tenantId} id=${result.lastID} externalId=${externalId || "-"} estado=${status} total=${toNumber(total, 0)}`
   );
 
   if (status === "pendiente") {
@@ -2500,7 +2511,7 @@ app.post("/orders", authOptional, async (req, res) => {
     });
   }
 
-  res.json({ id: result.lastID });
+  res.json({ id: result.lastID, tenant_id: tenantId });
 });
 
 app.put("/orders/:id/status", authRequired, async (req, res) => {
@@ -2747,7 +2758,7 @@ app.post("/sales", authRequired, async (req, res) => {
       [tenantId, refId, req.user.id]
     );
     if (existing && existing.id) {
-      return res.json({ id: existing.id, ok: true, existing: true });
+      return res.json({ id: existing.id, ok: true, existing: true, tenant_id: tenantId });
     }
   }
 
@@ -2997,7 +3008,7 @@ app.post("/reviews", authOptional, async (req, res) => {
     ]
   );
 
-  res.json({ id: result.lastID });
+  res.json({ id: result.lastID, tenant_id: tenantId });
 });
 
 app.delete("/reviews", authRequired, ownerOnly, async (req, res) => {
@@ -3010,6 +3021,7 @@ app.delete("/reviews", authRequired, ownerOnly, async (req, res) => {
 app.listen(PORT, () => {
   console.log(`API lista en http://localhost:${PORT}`);
 });
+
 
 
 

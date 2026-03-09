@@ -199,6 +199,10 @@ async function main() {
   const apiHealth = await requestJson("/health", { method: "GET", headers: { "Content-Type": "application/json" } });
   assertCondition(apiHealth.ok, "API /health responde correctamente.", "API no responde en /health.");
 
+  let activeTenantCode = TENANT_CODE;
+  let activeOwnerUsername = OWNER_USERNAME;
+  let activeOwnerPassword = OWNER_PASSWORD;
+
   const createTenant = await requestJson("/internal/tenants", {
     method: "POST",
     headers: {
@@ -213,9 +217,11 @@ async function main() {
     },
   });
 
+  const tenantAlreadyExisted = createTenant.status === 409;
+
   if (createTenant.status === 201) {
     pass(`Tenant readiness creado (${TENANT_CODE}).`);
-  } else if (createTenant.status === 409) {
+  } else if (tenantAlreadyExisted) {
     pass(`Tenant readiness ya existia (${TENANT_CODE}).`);
   } else {
     throw new Error(
@@ -225,10 +231,44 @@ async function main() {
     );
   }
 
-  const ownerLogin = await login(TENANT_CODE, OWNER_USERNAME, OWNER_PASSWORD);
+  let ownerLogin = await login(activeTenantCode, activeOwnerUsername, activeOwnerPassword);
+  if ((!ownerLogin.ok || !ownerLogin.json?.token) && tenantAlreadyExisted) {
+    warn("Credenciales owner readiness no coinciden con tenant existente. Se crea tenant temporal de prueba.");
+    const suffix = Date.now();
+    activeTenantCode = `${TENANT_CODE}-${suffix}`.toLowerCase();
+    activeOwnerUsername = `${OWNER_USERNAME}_${suffix}`;
+    activeOwnerPassword = OWNER_PASSWORD;
+
+    const createFallbackTenant = await requestJson("/internal/tenants", {
+      method: "POST",
+      headers: {
+        "X-Master-Key": MASTER_KEY,
+      },
+      body: {
+        name: `${TENANT_NAME} ${suffix}`,
+        code: activeTenantCode,
+        ownerUsername: activeOwnerUsername,
+        ownerPassword: activeOwnerPassword,
+        ownerRole: "owner",
+      },
+    });
+
+    if (createFallbackTenant.status !== 201) {
+      throw new Error(
+        `No se pudo crear tenant temporal readiness. status=${createFallbackTenant.status} body=${toJsonText(
+          createFallbackTenant.json || createFallbackTenant.raw
+        )}`
+      );
+    }
+    pass(`Tenant temporal readiness creado (${activeTenantCode}).`);
+    ownerLogin = await login(activeTenantCode, activeOwnerUsername, activeOwnerPassword);
+  }
+
   if (!ownerLogin.ok || !ownerLogin.json?.token) {
     throw new Error(
-      `Login owner readiness fallo. status=${ownerLogin.status} body=${toJsonText(ownerLogin.json || ownerLogin.raw)}`
+      `Login owner readiness fallo. tenant=${activeTenantCode} user=${activeOwnerUsername} status=${ownerLogin.status} body=${toJsonText(
+        ownerLogin.json || ownerLogin.raw
+      )}`
     );
   }
 
@@ -324,7 +364,7 @@ async function main() {
   );
   assertCondition(foundAdjust, "Movimiento de ajuste registrado correctamente.", "No se encontro movimiento del ajuste rapido.");
 
-  const staffLogin = await login(TENANT_CODE, staffUsername, STAFF_PASSWORD);
+  const staffLogin = await login(activeTenantCode, staffUsername, STAFF_PASSWORD);
   if (!staffLogin.ok || !staffLogin.json?.token) {
     throw new Error(
       `Login staff fallo. status=${staffLogin.status} body=${toJsonText(staffLogin.json || staffLogin.raw)}`

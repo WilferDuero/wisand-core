@@ -37,12 +37,14 @@ const DEFAULT_CATEGORY_SUGGESTIONS = [
   "Ferreteria",
   "Minimarket",
 ];
+const PENDING_ORDERS_POLL_MS = 15000;
 
 const state = {
   apiBase: "http://localhost:3001",
   tenantCode: "",
   token: "",
   user: null,
+  backendIdentity: null,
   branding: { ...DEFAULT_BRANDING },
   prefs: { ...DEFAULT_PREFS },
   products: [],
@@ -65,6 +67,14 @@ const state = {
     active: false,
     timeoutId: null,
   },
+  pendingOrders: {
+    intervalId: null,
+    knownIds: [],
+    currentOrders: [],
+    firstPollDone: false,
+    silenceUntil: 0,
+    permissionRequested: false,
+  },
 };
 
 const el = {
@@ -73,6 +83,7 @@ const el = {
   brandLogo: document.getElementById("brand-logo"),
   brandMonogram: document.getElementById("brand-monogram"),
   sessionUser: document.getElementById("session-user"),
+  backendInstance: document.getElementById("backend-instance"),
   logoutBtn: document.getElementById("logout-btn"),
 
   loginView: document.getElementById("login-view"),
@@ -144,6 +155,11 @@ const el = {
 
   salesList: document.getElementById("sales-list"),
   refreshSalesBtn: document.getElementById("refresh-sales-btn"),
+  pendingOrdersBanner: document.getElementById("pending-orders-banner"),
+  pendingOrdersCount: document.getElementById("pending-orders-count"),
+  pendingOrdersMeta: document.getElementById("pending-orders-meta"),
+  pendingOrdersRefreshBtn: document.getElementById("pending-orders-refresh-btn"),
+  pendingOrdersSilenceBtn: document.getElementById("pending-orders-silence-btn"),
   inactivePanel: document.getElementById("inactive-panel"),
   inactiveDays: document.getElementById("inactive-days"),
   refreshInactiveBtn: document.getElementById("refresh-inactive-btn"),
@@ -180,6 +196,70 @@ function normalizeCode(value) {
     .replace(/[^a-z0-9-]+/g, "-")
     .replace(/-{2,}/g, "-")
     .replace(/^-|-$/g, "");
+}
+
+function backendHostLabel(base) {
+  const raw = String(base || "").trim();
+  if (!raw) return "--";
+  try {
+    const parsed = new URL(raw);
+    return parsed.host || raw;
+  } catch {
+    return raw;
+  }
+}
+
+function shortInstanceId(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  return text.slice(0, 8);
+}
+
+function applyBackendIdentity(identity) {
+  state.backendIdentity = identity || null;
+  if (!el.backendInstance) return;
+
+  const base = String(identity?.base || state.apiBase || "").trim();
+  const host = backendHostLabel(base);
+  const instance = shortInstanceId(identity?.instance_id);
+  const engine = String(identity?.db_engine || "").trim();
+
+  let label = `Backend: ${host}`;
+  if (instance) label += ` | inst ${instance}`;
+  if (engine) label += ` | ${engine}`;
+  if (identity?.error) label += " | sin respuesta";
+
+  el.backendInstance.textContent = label;
+  el.backendInstance.title = base || label;
+}
+
+async function refreshBackendIdentity() {
+  const base = String(state.apiBase || el.apiBase?.value || "").trim().replace(/\/$/, "");
+  if (!base) {
+    applyBackendIdentity(null);
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${base}/health`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const payload = await response.json();
+    const identity = {
+      base,
+      instance_id: String(payload?.instance_id || ""),
+      started_at: String(payload?.started_at || ""),
+      pid: Number(payload?.pid || 0) || 0,
+      db_engine: String(payload?.db_engine || ""),
+    };
+    applyBackendIdentity(identity);
+    return payload;
+  } catch {
+    applyBackendIdentity({ base, error: true });
+    return null;
+  }
 }
 
 function prefsKey(code) {
@@ -673,6 +753,268 @@ function setFeedback(node, message, tone = "") {
 function setBusy(button, busy, busyLabel, idleLabel) {
   button.disabled = busy;
   button.textContent = busy ? busyLabel : idleLabel;
+}
+
+function pendingOrderId(order) {
+  const id = Number(order?.id);
+  return Number.isFinite(id) && id > 0 ? id : 0;
+}
+
+function normalizePendingOrders(rows) {
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .filter((row) => pendingOrderId(row) > 0)
+    .sort((a, b) => pendingOrderId(a) - pendingOrderId(b));
+}
+
+function pendingOrderRef(order) {
+  const externalId = String(order?.externalId || "").trim();
+  if (externalId) return externalId;
+  const id = pendingOrderId(order);
+  return id > 0 ? `#${id}` : "#-";
+}
+
+function pendingOrderCustomer(order) {
+  const customer = String(order?.clienteNombre || "").trim();
+  return customer || "Cliente";
+}
+
+function pendingOrderSummary(order) {
+  const customer = pendingOrderCustomer(order);
+  const ref = pendingOrderRef(order);
+  const total = money(Number(order?.total) || 0);
+  return `${customer} - ${ref} - ${total}`;
+}
+
+function updatePendingOrdersKnownIds(orders) {
+  state.pendingOrders.knownIds = orders
+    .map((order) => pendingOrderId(order))
+    .filter((id) => id > 0);
+  state.pendingOrders.currentOrders = Array.isArray(orders) ? [...orders] : [];
+}
+
+function detectNewPendingOrders(orders) {
+  const known = new Set(state.pendingOrders.knownIds);
+  return orders.filter((order) => {
+    const id = pendingOrderId(order);
+    return id > 0 && !known.has(id);
+  });
+}
+
+function maybeRequestBrowserNotificationPermission() {
+  if (!("Notification" in window)) return;
+  if (state.pendingOrders.permissionRequested) return;
+  if (Notification.permission !== "default") return;
+
+  state.pendingOrders.permissionRequested = true;
+  Notification.requestPermission().catch(() => {});
+}
+
+function showBrowserPendingOrderNotification(title, body) {
+  if (!("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+
+  try {
+    const notice = new Notification(title, {
+      body,
+      tag: `wisand-pending-${state.tenantCode || "tenant"}`,
+      renotify: true,
+    });
+    setTimeout(() => {
+      notice.close();
+    }, 7000);
+  } catch {
+    // Ignorar si el navegador bloquea esta notificacion.
+  }
+}
+
+function playPendingOrderTone() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+
+    const ctx = new AudioCtx();
+    const beeps = [880, 1046, 880];
+
+    beeps.forEach((freq, idx) => {
+      const startAt = ctx.currentTime + idx * 0.17;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = "sine";
+      osc.frequency.value = freq;
+
+      gain.gain.setValueAtTime(0.0001, startAt);
+      gain.gain.exponentialRampToValueAtTime(0.12, startAt + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.13);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(startAt);
+      osc.stop(startAt + 0.14);
+    });
+
+    setTimeout(() => {
+      void ctx.close();
+    }, 900);
+  } catch {
+    // Ignorar errores de audio (browser policy/permisos).
+  }
+}
+
+function renderPendingOrdersNotice(orders = []) {
+  if (!el.pendingOrdersBanner || !el.pendingOrdersCount || !el.pendingOrdersMeta) return;
+
+  const loggedIn = !!state.token && !!state.user;
+  if (!loggedIn) {
+    el.pendingOrdersBanner.classList.add("hidden");
+    return;
+  }
+
+  el.pendingOrdersBanner.classList.remove("hidden");
+
+  const count = orders.length;
+  const silencedMs = state.pendingOrders.silenceUntil - Date.now();
+  const silenced = silencedMs > 0;
+
+  if (count <= 0) {
+    el.pendingOrdersBanner.classList.remove("has-pending", "attention");
+    el.pendingOrdersCount.textContent = "Sin domicilios pendientes";
+    el.pendingOrdersMeta.textContent = "No hay pedidos pendientes por confirmar.";
+
+    if (el.pendingOrdersSilenceBtn) {
+      el.pendingOrdersSilenceBtn.disabled = true;
+      el.pendingOrdersSilenceBtn.textContent = "Silenciar 5m";
+    }
+    return;
+  }
+
+  const latest = orders[orders.length - 1];
+  el.pendingOrdersBanner.classList.add("has-pending");
+  el.pendingOrdersCount.textContent = `${count} domicilio${count === 1 ? "" : "s"} pendiente${count === 1 ? "" : "s"}`;
+  el.pendingOrdersMeta.textContent = `Ultimo: ${pendingOrderSummary(latest)}.`;
+
+  if (el.pendingOrdersSilenceBtn) {
+    if (silenced) {
+      const remaining = Math.max(1, Math.ceil(silencedMs / 60000));
+      el.pendingOrdersSilenceBtn.disabled = true;
+      el.pendingOrdersSilenceBtn.textContent = `Silenciado ${remaining}m`;
+    } else {
+      el.pendingOrdersSilenceBtn.disabled = false;
+      el.pendingOrdersSilenceBtn.textContent = "Silenciar 5m";
+    }
+  }
+}
+
+function notifyNewPendingOrders(newOrders, allOrders) {
+  if (!newOrders.length) return;
+
+  const count = newOrders.length;
+  const latest = newOrders[newOrders.length - 1];
+  const title = count === 1 ? "Nuevo domicilio pendiente" : `${count} domicilios pendientes nuevos`;
+  const body = pendingOrderSummary(latest);
+
+  if (Date.now() >= state.pendingOrders.silenceUntil) {
+    playPendingOrderTone();
+    showBrowserPendingOrderNotification(title, body);
+  }
+
+  if (el.pendingOrdersBanner) {
+    el.pendingOrdersBanner.classList.add("attention");
+    setTimeout(() => {
+      if (el.pendingOrdersBanner) {
+        el.pendingOrdersBanner.classList.remove("attention");
+      }
+    }, 1200);
+  }
+
+  setFeedback(
+    el.saleFeedback,
+    `${title}. Pendientes totales: ${allOrders.length}. Revisa y gestiona el domicilio.`,
+    "success"
+  );
+}
+
+async function pollPendingOrders(options = {}) {
+  if (!state.token || !state.user) return;
+
+  const manual = !!options.manual;
+
+  try {
+    const payload = await request("/orders?estado=pendiente");
+    const orders = normalizePendingOrders(payload);
+    const newOrders = state.pendingOrders.firstPollDone ? detectNewPendingOrders(orders) : [];
+
+    renderPendingOrdersNotice(orders);
+
+    if (state.pendingOrders.firstPollDone) {
+      notifyNewPendingOrders(newOrders, orders);
+    }
+
+    updatePendingOrdersKnownIds(orders);
+    state.pendingOrders.firstPollDone = true;
+
+    if (manual) {
+      setFeedback(
+        el.saleFeedback,
+        orders.length
+          ? `Pedidos pendientes actualizados: ${orders.length}.`
+          : "No hay pedidos pendientes.",
+        "success"
+      );
+    }
+  } catch (error) {
+    if (manual) {
+      setFeedback(el.saleFeedback, `No se pudo actualizar pedidos pendientes: ${error.message}`, "error");
+    }
+  }
+}
+
+async function startPendingOrdersMonitor() {
+  stopPendingOrdersMonitor();
+
+  if (!state.token || !state.user) return;
+
+  maybeRequestBrowserNotificationPermission();
+  await pollPendingOrders({ manual: false });
+
+  state.pendingOrders.intervalId = setInterval(() => {
+    void pollPendingOrders({ manual: false });
+  }, PENDING_ORDERS_POLL_MS);
+}
+
+function stopPendingOrdersMonitor() {
+  if (state.pendingOrders.intervalId) {
+    clearInterval(state.pendingOrders.intervalId);
+    state.pendingOrders.intervalId = null;
+  }
+
+  state.pendingOrders.knownIds = [];
+  state.pendingOrders.currentOrders = [];
+  state.pendingOrders.firstPollDone = false;
+  state.pendingOrders.silenceUntil = 0;
+  state.pendingOrders.permissionRequested = false;
+
+  if (el.pendingOrdersBanner) {
+    el.pendingOrdersBanner.classList.remove("attention", "has-pending");
+  }
+  if (el.pendingOrdersSilenceBtn) {
+    el.pendingOrdersSilenceBtn.disabled = true;
+    el.pendingOrdersSilenceBtn.textContent = "Silenciar 5m";
+  }
+  renderPendingOrdersNotice([]);
+}
+
+function silencePendingOrders(minutes = 5) {
+  if (!state.token || !state.user) return;
+
+  const safeMinutes = Math.max(1, Math.floor(Number(minutes) || 5));
+  state.pendingOrders.silenceUntil = Date.now() + safeMinutes * 60 * 1000;
+
+  renderPendingOrdersNotice(state.pendingOrders.currentOrders);
+
+  setFeedback(el.saleFeedback, `Alertas de domicilios silenciadas por ${safeMinutes} minutos.`, "");
 }
 
 function persistSession() {
@@ -1766,6 +2108,7 @@ function setAuthView(loggedIn) {
     focusScanInput();
   } else {
     el.sessionUser.textContent = "Sin sesion";
+    renderPendingOrdersNotice([]);
   }
 }
 
@@ -3048,12 +3391,15 @@ async function checkApiConnection() {
   }
 
   try {
-    const response = await fetch(`${state.apiBase}/health`);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+    const health = await refreshBackendIdentity();
+    if (!health || health.ok !== true) {
+      throw new Error("sin health");
     }
+
+    const instance = shortInstanceId(health.instance_id);
+    const suffix = instance ? ` (inst ${instance})` : "";
     if (el.apiFeedback) {
-      setFeedback(el.apiFeedback, "API conectada correctamente.", "success");
+      setFeedback(el.apiFeedback, `API conectada correctamente${suffix}.`, "success");
     }
   } catch {
     if (el.apiFeedback) {
@@ -3084,6 +3430,7 @@ async function submitLogin(event) {
   setBusy(el.loginBtn, true, "Ingresando...", "Entrar");
 
   try {
+    await refreshBackendIdentity();
     await loadBrandingByCode(state.tenantCode);
 
     const data = await request("/auth/login", {
@@ -3109,6 +3456,7 @@ async function submitLogin(event) {
     setAuthView(true);
     await Promise.all([loadProducts(), loadSales(), loadClosureHistory(), loadInventoryMovements()]);
     setLastTicket(null);
+    await startPendingOrdersMonitor();
     setFeedback(el.loginFeedback, "Sesion iniciada.", "success");
   } catch (error) {
     setFeedback(el.loginFeedback, `No se pudo iniciar sesion: ${error.message}`, "error");
@@ -3244,6 +3592,7 @@ async function completeSale() {
 function logout() {
   state.token = "";
   state.user = null;
+  state.backendIdentity = null;
   state.products = [];
   state.filteredProducts = [];
   state.sales = [];
@@ -3261,6 +3610,7 @@ function logout() {
   state.quickCreateCode = "";
   clearScanProbeTimeout();
   setScanProbeState(false);
+  stopPendingOrdersMonitor();
   if (el.quickCreateModal) {
     el.quickCreateModal.classList.add("hidden");
   }
@@ -3295,8 +3645,10 @@ async function restoreSession() {
 
   el.apiBase.value = state.apiBase;
   el.tenantCode.value = state.tenantCode;
+  await refreshBackendIdentity();
 
   try {
+    await refreshBackendIdentity();
     await loadBrandingByCode(state.tenantCode);
     const me = await request("/auth/me");
     state.user = me || state.user;
@@ -3306,6 +3658,7 @@ async function restoreSession() {
     setAuthView(true);
     await Promise.all([loadProducts(), loadSales(), loadClosureHistory(), loadInventoryMovements()]);
     setLastTicket(null);
+    await startPendingOrdersMonitor();
   } catch {
     logout();
   }
@@ -3587,11 +3940,24 @@ function bindEvents() {
       await loadSales();
       await loadClosureHistory();
       await loadInventoryMovements();
+      await pollPendingOrders({ manual: false });
       setFeedback(el.saleFeedback, "Historial actualizado.", "success");
     } catch (error) {
       setFeedback(el.saleFeedback, `No se pudo actualizar ventas: ${error.message}`, "error");
     }
   });
+
+  if (el.pendingOrdersRefreshBtn) {
+    el.pendingOrdersRefreshBtn.addEventListener("click", () => {
+      void pollPendingOrders({ manual: true });
+    });
+  }
+
+  if (el.pendingOrdersSilenceBtn) {
+    el.pendingOrdersSilenceBtn.addEventListener("click", () => {
+      silencePendingOrders(5);
+    });
+  }
 
   if (el.inactiveDays) {
     el.inactiveDays.addEventListener("change", () => {
@@ -3813,6 +4179,7 @@ function bindEvents() {
 
 async function init() {
   applyBranding(DEFAULT_BRANDING);
+  await refreshBackendIdentity();
   if (el.closureDate && !el.closureDate.value) {
     el.closureDate.value = toDateInputValueLocal();
   }

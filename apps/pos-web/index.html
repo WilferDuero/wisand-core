@@ -19,6 +19,7 @@
         </div>
         <div class="topbar-meta">
           <p id="session-user" class="session-user">Sin sesion</p>
+          <p id="backend-instance" class="backend-instance">Backend: --</p>
           <button id="logout-btn" class="btn ghost hidden" type="button">Cerrar sesion</button>
         </div>
       </header>
@@ -159,6 +160,17 @@
           </article>
 
           <article class="card side-panel">
+            <div id="pending-orders-banner" class="pending-orders-banner hidden" role="status" aria-live="polite">
+              <div class="pending-orders-top">
+                <strong id="pending-orders-count">Sin domicilios pendientes</strong>
+              </div>
+              <p id="pending-orders-meta" class="pending-orders-meta">No hay pedidos pendientes por confirmar.</p>
+              <div class="pending-orders-actions">
+                <button id="pending-orders-refresh-btn" class="btn ghost" type="button">Actualizar pedidos</button>
+                <button id="pending-orders-silence-btn" class="btn ghost" type="button" disabled>Silenciar 5m</button>
+              </div>
+            </div>
+
             <div class="panel-head">
               <h2>Ultimas ventas</h2>
               <button id="refresh-sales-btn" class="btn ghost" type="button">Actualizar</button>
@@ -327,3 +339,4 @@
     <script src="./app.js" defer></script>
   </body>
 </html>
+
