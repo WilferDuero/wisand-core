@@ -88,6 +88,10 @@ npm --prefix server run test:multitenant
 ## Operacion Go Live
 
 - Checklist primer cliente: `docs/GO_LIVE_CHECKLIST.md`
+- Dia real en negocio: `docs/DIA_REAL_CHECKLIST.md`
 - Manual de entrega owner/staff: `docs/ENTREGA_PRIMER_CLIENTE.md`
+- Entrega credenciales + soporte 7 dias: `docs/ENTREGA_CREDENCIALES_SOPORTE_7DIAS.md`
+- Deploy remoto estable: `docs/REMOTE_BACKEND.md`
+- Politica de congelacion v0.1.0: `docs/RELEASE_FREEZE_V0_1.md`
+- Comando integral de verificacion: `npm --prefix server run ops:first-client`
 - Backup diario: `npm --prefix server run backup:db`
-

@@ -4,6 +4,9 @@ const path = require("path");
 
 const PORT = Number(process.env.PORT || 3030);
 const ROOT = __dirname;
+const POS_API_BASE_URL = String(process.env.POS_API_BASE_URL || "http://localhost:3001")
+  .trim()
+  .replace(/\/+$/, "");
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -27,6 +30,19 @@ function safePath(urlPath) {
 }
 
 const server = http.createServer((req, res) => {
+  const routePath = String(req.url || "").split("?")[0] || "/";
+  if (routePath === "/config.js") {
+    const payload = `window.__WISAND_POS_CONFIG = ${JSON.stringify({
+      apiBase: POS_API_BASE_URL,
+    })};`;
+    res.writeHead(200, {
+      "Content-Type": "text/javascript; charset=utf-8",
+      "Cache-Control": "no-store",
+    });
+    res.end(payload);
+    return;
+  }
+
   const filePath = safePath(req.url);
   if (!filePath) {
     res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" });
@@ -62,4 +78,5 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, () => {
   console.log(`[pos-web] http://localhost:${PORT}`);
+  console.log(`[pos-web] API base por defecto: ${POS_API_BASE_URL}`);
 });

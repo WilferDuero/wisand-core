@@ -39,8 +39,15 @@ const DEFAULT_CATEGORY_SUGGESTIONS = [
 ];
 const PENDING_ORDERS_POLL_MS = 15000;
 
+const normalizeBaseUrl = (value = "") => String(value || "").trim().replace(/\/+$/, "");
+const POS_BOOTSTRAP_CONFIG =
+  typeof window !== "undefined" && window.__WISAND_POS_CONFIG
+    ? window.__WISAND_POS_CONFIG
+    : {};
+const POS_DEFAULT_API_BASE = normalizeBaseUrl(POS_BOOTSTRAP_CONFIG.apiBase || "http://localhost:3001");
+
 const state = {
-  apiBase: "http://localhost:3001",
+  apiBase: POS_DEFAULT_API_BASE,
   tenantCode: "",
   token: "",
   user: null,
@@ -3617,6 +3624,9 @@ function logout() {
   document.body.classList.remove("modal-open");
   clearSessionStorage();
   applyBranding(DEFAULT_BRANDING);
+  if (el.apiBase) {
+    el.apiBase.value = state.apiBase;
+  }
   applyTenantPrefsUi();
   setLastTicket(null);
   setAuthView(false);
@@ -4179,6 +4189,9 @@ function bindEvents() {
 
 async function init() {
   applyBranding(DEFAULT_BRANDING);
+  if (el.apiBase) {
+    el.apiBase.value = state.apiBase;
+  }
   await refreshBackendIdentity();
   if (el.closureDate && !el.closureDate.value) {
     el.closureDate.value = toDateInputValueLocal();

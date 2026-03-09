@@ -164,6 +164,12 @@ Chequeo pre-produccion:
 npm --prefix server run check:golive
 ```
 
+Chequeo integral recomendado (go-live + multi-tenant + readiness + backup):
+
+```powershell
+npm --prefix server run ops:first-client
+```
+
 Crear un negocio nuevo en 1 comando:
 
 ```powershell

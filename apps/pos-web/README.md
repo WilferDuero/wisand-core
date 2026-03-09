@@ -4,6 +4,9 @@ Interfaz de escritorio para caja/ventas conectada al backend multi-tenant de WIS
 
 ## Ejecutar
 
+1. Copia `.env.example` a `.env` y define `POS_API_BASE_URL` con tu backend estable.
+2. Inicia el POS:
+
 ```bash
 npm install
 npm start
@@ -13,9 +16,9 @@ Abrir en navegador: `http://localhost:3030`
 
 ## Login
 
-- API Base URL: `http://localhost:3001`
-- Codigo negocio: `tenant code` del cliente
-- Usuario / contrasena: credenciales owner o staff del tenant
+- API Base URL: viene pre-cargada desde `POS_API_BASE_URL` (archivo `.env`).
+- Codigo negocio: `tenant code` del cliente.
+- Usuario / contrasena: credenciales owner o staff del tenant.
 
 ## Flujo actual
 
@@ -61,6 +64,13 @@ Plantilla lista para usar:
 - `F8`: imprimir cierre diario
 - `F9`: exportar cierre CSV
 - `Esc`: limpiar carrito
+
+## URL unica recomendada
+
+Para evitar desalineacion entre sistemas, usa la misma URL de backend en:
+- POS Web (`POS_API_BASE_URL` en `apps/pos-web/.env`)
+- App movil (`EXPO_PUBLIC_API_BASE_URL` en `apps/admin-mobile/.env`)
+- Front de tienda/web cliente (variable/config API_BASE equivalente)
 
 ## Nota
 

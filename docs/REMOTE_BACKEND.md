@@ -1,73 +1,91 @@
-﻿# Backend remoto (Render + Neon)
+# Backend remoto estable (URL unica)
 
-Guia minima para operar WISAND Core con backend remoto para la app movil.
+Objetivo: que API, POS Web, app movil y web cliente apunten a la misma URL de backend para evitar desalineaciones.
 
-## Stack recomendado (free)
+## Opcion A (recomendada): Render + Neon Postgres
 
-- API: Render Web Service (Free)
-- DB Postgres: Neon (Free)
+### 1) Base de datos (Neon)
 
-## 1) Crear base de datos en Neon
+1. Crear proyecto en Neon.
+2. Copiar `DATABASE_URL` (incluye SSL).
 
-1. Crea proyecto en Neon.
-2. Copia la cadena `DATABASE_URL`.
+### 2) API en Render
 
-## 2) Desplegar API en Render
+1. Crear `Web Service`.
+2. Conectar repo `wisand-core`.
+3. Configuracion:
+- Root Directory: `server`
+- Build Command: `npm install`
+- Start Command: `npm run start`
+- Plan: el que definas (`free` o pago)
 
-1. En Render crea `New -> Web Service`.
-2. Conecta el repo `wisand-core`.
-3. Configura:
-   - Root Directory: `server`
-   - Build Command: `npm install`
-   - Start Command: `npm run start`
-   - Plan: `Free`
 4. Variables obligatorias:
-   - `NODE_ENV=production`
-   - `DATABASE_URL=<url neon>`
-   - `JWT_SECRET=<secreto largo>`
-   - `MASTER_KEY=<secreto largo>`
-5. Variables para owner inicial:
-   - `ADMIN_USER=admin`
-   - `ADMIN_PASS=<clave segura>`
-   - `ADMIN_ROLE=owner`
+- `NODE_ENV=production`
+- `DATABASE_URL=<postgres_url_neon>`
+- `JWT_SECRET=<secreto_largo_32+>`
+- `MASTER_KEY=<secreto_largo_24+>`
 
-Tambien puedes crear el servicio desde `render.yaml` en la raiz del repo.
+5. Owner inicial (opcional por bootstrap):
+- `ADMIN_USER=admin`
+- `ADMIN_PASS=<clave_segura>`
+- `ADMIN_ROLE=owner`
 
-## 3) Verificar API remota
+6. Endpoint de validacion:
+- `https://<tu-api>.onrender.com/health`
 
-Prueba:
+## Opcion B: Railway + Postgres gestionado
 
-- `https://tu-api.onrender.com/health`
+1. Crear proyecto en Railway.
+2. Crear servicio Postgres y copiar `DATABASE_URL`.
+3. Crear servicio Node para `server/`.
+4. Configurar variables:
+- `NODE_ENV=production`
+- `DATABASE_URL=<postgres_url_railway>`
+- `JWT_SECRET=<secreto_largo_32+>`
+- `MASTER_KEY=<secreto_largo_24+>`
 
-Debe responder `ok: true`.
+5. Validar:
+- `https://<tu-api-railway>.up.railway.app/health`
 
-## 4) Crear tenant real
+## URL unica (obligatorio)
 
-Con el backend ya desplegado:
+Define una sola URL de backend, por ejemplo:
+
+`https://api-wisand.tudominio.com`
+
+Y usala en todos los clientes:
+
+1. POS Web (`apps/pos-web/.env`)
+```env
+POS_API_BASE_URL=https://api-wisand.tudominio.com
+```
+
+2. App movil (`apps/admin-mobile/.env`)
+```env
+EXPO_PUBLIC_API_BASE_URL=https://api-wisand.tudominio.com
+```
+
+3. Web cliente/tienda (si aplica)
+- Configurar su variable/API base equivalente al mismo host.
+
+## Validacion tecnica post deploy
+
+Desde raiz del repo (contra backend remoto):
 
 ```bash
-npm --prefix server run tenant:create -- --api "https://tu-api.onrender.com" --name "Negocio Demo" --code "negocio-demo" --owner "owner_demo" --password "ClaveSegura123"
+npm --prefix server run check:golive
+npm --prefix server run test:multitenant
+npm --prefix server run test:readiness
 ```
 
-## 5) Apuntar app movil al backend remoto
+O comando unico:
 
-En `apps/admin-mobile/.env`:
-
-```env
-EXPO_PUBLIC_API_BASE_URL=https://tu-api.onrender.com
+```bash
+npm --prefix server run ops:first-client
 ```
 
-Luego inicia sesion en la app con:
-- codigo de negocio
-- usuario
-- contrasena
+## Crear negocio real en produccion
 
-## 6) Limites free a tener en cuenta
-
-- Render Free: sleep por inactividad (cold start)
-- Neon Free: limites de almacenamiento/compute del plan
-
-## 7) Referencias oficiales
-
-- Render Free: `https://render.com/docs/free`
-- Neon pricing: `https://neon.com/pricing`
+```bash
+npm --prefix server run onboard:client -- --api "https://api-wisand.tudominio.com" --name "Negocio Demo" --code "negocio-demo" --owner-user "owner_demo" --owner-pass "ClaveSegura123" --staff-user "staff_demo" --staff-pass "ClaveSegura123"
+```

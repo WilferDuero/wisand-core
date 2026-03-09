@@ -1,4 +1,4 @@
-﻿# WISAND - Admin Mobile (Expo)
+# WISAND - Admin Mobile (Expo)
 
 App movil solo para panel admin (roles `owner` y `staff`) usando React Native + Expo + TypeScript.
 
@@ -54,7 +54,7 @@ App movil solo para panel admin (roles `owner` y `staff`) usando React Native + 
 ## Configuracion de entorno
 1. Copia `.env.example` a `.env`.
 2. Ajusta:
-   - `EXPO_PUBLIC_API_BASE_URL`
+   - `EXPO_PUBLIC_API_BASE_URL` (misma URL usada en POS Web y web cliente)
    - `EXPO_PUBLIC_API_TIMEOUT_MS`
    - `EXPO_PUBLIC_TENANT_ID` (default: `1`)
    - `EXPO_PUBLIC_SESSION_IDLE_TIMEOUT_MS`
