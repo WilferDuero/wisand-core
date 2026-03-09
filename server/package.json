@@ -1,38 +1,39 @@
 {
-  "name": "wisand-core-api",
-  "version": "0.1.0",
-  "description": "WISAND Core - Multi-tenant business management platform",
-  "main": "index.js",
-  "scripts": {
-    "dev": "node index.js",
-    "start": "node index.js",
-    "migrate": "node scripts/migrate.js",
-    "test:multitenant": "node scripts/test-multitenant.js",
-    "test:readiness": "node scripts/test-pos-readiness.js",
-    "backup:db": "node scripts/backup-db.js",
-    "import:renacer": "node scripts/import-renacer-remote.js",
-    "check:golive": "node scripts/go-live-check.js",
-    "tenant:create": "node scripts/create-tenant.js",
-    "owner:create": "node scripts/create-super-owner.js",
-    "onboard:client": "node scripts/onboard-client.js"
-  },
-  "keywords": [
-    "wisand",
-    "multi-tenant",
-    "business-platform",
-    "saas"
-  ],
-  "author": "Wilfer Duero",
-  "license": "ISC",
-  "type": "commonjs",
-  "dependencies": {
-    "bcryptjs": "^2.4.3",
-    "cors": "^2.8.6",
-    "dotenv": "^17.2.4",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.2",
-    "pg": "^8.13.3",
-    "sqlite": "^5.1.1",
-    "sqlite3": "^5.1.7"
-  }
+    "name":  "wisand-core-api",
+    "version":  "0.1.0",
+    "description":  "WISAND Core - Multi-tenant business management platform",
+    "main":  "index.js",
+    "scripts":  {
+                    "dev":  "node index.js",
+                    "start":  "node index.js",
+                    "migrate":  "node scripts/migrate.js",
+                    "test:multitenant":  "node scripts/test-multitenant.js",
+                    "test:readiness":  "node scripts/test-pos-readiness.js",
+                    "backup:db":  "node scripts/backup-db.js",
+                    "import:renacer":  "node scripts/import-renacer-remote.js",
+                    "check:golive":  "node scripts/go-live-check.js",
+                    "tenant:create":  "node scripts/create-tenant.js",
+                    "owner:create":  "node scripts/create-super-owner.js",
+                    "onboard:client":  "node scripts/onboard-client.js",
+                    "ops:first-client":  "node scripts/ops-first-client.js"
+                },
+    "keywords":  [
+                     "wisand",
+                     "multi-tenant",
+                     "business-platform",
+                     "saas"
+                 ],
+    "author":  "Wilfer Duero",
+    "license":  "ISC",
+    "type":  "commonjs",
+    "dependencies":  {
+                         "bcryptjs":  "^2.4.3",
+                         "cors":  "^2.8.6",
+                         "dotenv":  "^17.2.4",
+                         "express":  "^5.2.1",
+                         "jsonwebtoken":  "^9.0.2",
+                         "pg":  "^8.13.3",
+                         "sqlite":  "^5.1.1",
+                         "sqlite3":  "^5.1.7"
+                     }
 }

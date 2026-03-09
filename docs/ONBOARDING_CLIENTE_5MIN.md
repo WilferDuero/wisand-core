@@ -39,6 +39,12 @@ npm --prefix server run backup:db
 5. Validar salud final:
 
 ```powershell
+npm --prefix server run ops:first-client
+```
+
+O en modo manual:
+
+```powershell
 npm --prefix server run check:golive
 npm --prefix server run test:multitenant
 npm --prefix server run test:readiness

@@ -88,6 +88,9 @@ async function main() {
   }
 
   let tenant2Id = TENANT2_ID_FALLBACK;
+  let tenant2Code = TENANT2_CODE;
+  let tenant2Owner = TENANT2_OWNER;
+  let tenant2Password = TENANT2_PASSWORD;
 
   info(`Creando tenant "${TENANT2_NAME}" (si no existe)...`);
   const createTenantRes = await requestJson("/internal/tenants", {
@@ -105,13 +108,16 @@ async function main() {
     }),
   });
 
+  const tenantAlreadyExisted = createTenantRes.status === 409;
+
   if (createTenantRes.status === 201) {
     const createdTenantId = Number(createTenantRes.json?.tenant?.id) || tenant2Id;
     tenant2Id = createdTenantId;
+    tenant2Code = String(createTenantRes.json?.tenant?.code || tenant2Code).trim().toLowerCase() || tenant2Code;
     pass(
-      `Tenant creado id=${tenant2Id} code=${createTenantRes.json?.tenant?.code || TENANT2_CODE} owner=${TENANT2_OWNER}`
+      `Tenant creado id=${tenant2Id} code=${tenant2Code} owner=${tenant2Owner}`
     );
-  } else if (createTenantRes.status === 409) {
+  } else if (tenantAlreadyExisted) {
     pass(`Tenant ya existia: ${TENANT2_NAME}`);
   } else {
     fail(
@@ -122,17 +128,58 @@ async function main() {
     process.exit(1);
   }
 
-  info(`Login tenant2 username=${TENANT2_OWNER} tenant_code=${TENANT2_CODE}...`);
-  const loginTenant2Res = await login({
-    username: TENANT2_OWNER,
-    password: TENANT2_PASSWORD,
+  info(`Login tenant2 username=${tenant2Owner} tenant_code=${tenant2Code}...`);
+  let loginTenant2Res = await login({
+    username: tenant2Owner,
+    password: tenant2Password,
     tenantId: tenant2Id,
-    tenantCode: TENANT2_CODE,
+    tenantCode: tenant2Code,
   });
+
+  if ((!loginTenant2Res.ok || !loginTenant2Res.json?.token) && tenantAlreadyExisted) {
+    info("Credenciales de tenant demo no coinciden. Creando tenant temporal para la prueba...");
+    const suffix = Date.now();
+    tenant2Code = `${TENANT2_CODE}-${suffix}`;
+    tenant2Owner = `${TENANT2_OWNER}_${suffix}`;
+
+    const createTempTenantRes = await requestJson("/internal/tenants", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Master-Key": MASTER_KEY,
+      },
+      body: JSON.stringify({
+        name: `${TENANT2_NAME} ${suffix}`,
+        code: tenant2Code,
+        ownerUsername: tenant2Owner,
+        ownerPassword: tenant2Password,
+        ownerRole: "owner",
+      }),
+    });
+
+    if (createTempTenantRes.status !== 201) {
+      fail(
+        `No se pudo crear tenant temporal. status=${createTempTenantRes.status} body=${JSON.stringify(
+          createTempTenantRes.json || createTempTenantRes.raw
+        )}`
+      );
+      process.exit(1);
+    }
+
+    tenant2Id = Number(createTempTenantRes.json?.tenant?.id) || tenant2Id;
+    pass(`Tenant temporal creado id=${tenant2Id} code=${tenant2Code} owner=${tenant2Owner}`);
+
+    loginTenant2Res = await login({
+      username: tenant2Owner,
+      password: tenant2Password,
+      tenantId: tenant2Id,
+      tenantCode: tenant2Code,
+    });
+  }
 
   if (!loginTenant2Res.ok || !loginTenant2Res.json?.token) {
     fail(
-      `Login tenant2 fallo con tenant_code=${TENANT2_CODE}. status=${loginTenant2Res.status}`
+      `Login tenant2 fallo con tenant_code=${tenant2Code}. status=${loginTenant2Res.status}`
     );
     process.exit(1);
   }
@@ -140,9 +187,9 @@ async function main() {
   const tenant2Token = String(loginTenant2Res.json.token);
   const tenant2User = loginTenant2Res.json.user || {};
   pass(
-    `Login tenant2 OK user=${tenant2User.username || TENANT2_OWNER} tenant_id=${
+    `Login tenant2 OK user=${tenant2User.username || tenant2Owner} tenant_id=${
       tenant2User.tenant_id || tenant2Id
-    } tenant_code=${tenant2User.tenant_code || TENANT2_CODE}`
+    } tenant_code=${tenant2User.tenant_code || tenant2Code}`
   );
 
   const externalId = `mt-test-${Date.now()}-${Math.floor(Math.random() * 1000)}`;

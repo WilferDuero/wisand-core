@@ -73,8 +73,14 @@ Postgres:
 Comandos recomendados:
 
 ```bash
+npm --prefix server run ops:first-client
+```
+
+Tambien puedes ejecutar individualmente:
+
+```bash
 npm --prefix server run check:golive
 npm --prefix server run test:readiness
 ```
 
-Si ambos pasan, la operacion queda en estado saludable.
+Si pasan, la operacion queda en estado saludable.
