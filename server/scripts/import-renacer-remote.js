@@ -15,7 +15,7 @@ const SOURCE_API_BASE = String(
   .trim()
   .replace(/\/+$/, "");
 const SOURCE_USERNAME = String(process.env.SOURCE_USERNAME || "SandyMolina").trim();
-const SOURCE_PASSWORD = String(process.env.SOURCE_PASSWORD || "Wisand2729").trim();
+const SOURCE_PASSWORD = String(process.env.SOURCE_PASSWORD || "").trim();
 const TARGET_DB_FILE = String(
   process.env.TARGET_DB_FILE || path.join(__dirname, "..", "data", "app.db")
 ).trim();
@@ -23,7 +23,7 @@ const TENANT_CODE = String(process.env.TENANT_CODE || "drogueria-renacer")
   .trim()
   .toLowerCase();
 const TENANT_NAME = String(process.env.TENANT_NAME || "Drogueria Renacer").trim();
-const TEMP_PASSWORD = String(process.env.TEMP_PASSWORD || "Renacer#2026").trim();
+const TEMP_PASSWORD = String(process.env.TEMP_PASSWORD || "").trim();
 
 const toInt = (value, fallback = 0) => {
   const n = Number.parseInt(value, 10);
@@ -176,8 +176,8 @@ async function main() {
   console.log(`[import-renacer] source_api=${SOURCE_API_BASE}`);
   console.log(`[import-renacer] target_db=${TARGET_DB_FILE}`);
 
-  if (!SOURCE_USERNAME || !SOURCE_PASSWORD) {
-    throw new Error("SOURCE_USERNAME/SOURCE_PASSWORD requeridos");
+  if (!SOURCE_USERNAME || !SOURCE_PASSWORD || !TEMP_PASSWORD) {
+    throw new Error("SOURCE_USERNAME, SOURCE_PASSWORD y TEMP_PASSWORD son requeridos");
   }
 
   const login = await sourceLogin();
@@ -498,9 +498,7 @@ async function main() {
     console.log(
       `[import-renacer] final tenant=${TENANT_CODE} users=${finalCounts.users} products=${finalCounts.products} orders=${finalCounts.orders} sales=${finalCounts.sales} reviews=${finalCounts.reviews}`
     );
-    console.log(
-      `[import-renacer] done. Temp password usado para nuevos usuarios: "${TEMP_PASSWORD}"`
-    );
+    console.log("[import-renacer] done. Temp password aplicado a nuevos usuarios.");
   } catch (error) {
     await db.exec("ROLLBACK");
     throw error;

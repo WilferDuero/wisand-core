@@ -34,7 +34,7 @@ Criterio de salida:
 Nota local (Windows): si `NODE_ENV=production` y no existe owner en tenant default, define `ADMIN_PASS` temporal para correr checks.
 
 ```powershell
-$env:ADMIN_PASS="TempAdmin#12345"
+$env:ADMIN_PASS="<clave-temporal-segura>"
 npm --prefix server run check:golive
 ```
 

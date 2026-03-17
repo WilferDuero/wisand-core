@@ -2103,6 +2103,7 @@ function setAuthView(loggedIn) {
   if (el.importCsvBtn) el.importCsvBtn.classList.toggle("hidden", !loggedIn || !isOwnerSession());
   if (el.inactivePanel) el.inactivePanel.classList.toggle("hidden", !loggedIn || !isOwnerSession());
   const technical = loggedIn && isTechnicalSession();
+  if (el.backendInstance) el.backendInstance.classList.toggle("hidden", !technical);
   if (el.scannerTestTools) el.scannerTestTools.classList.toggle("hidden", !technical);
   if (!technical && el.scanTestFeedback) setFeedback(el.scanTestFeedback, "", "");
   if (!technical) {
